@@ -2,6 +2,7 @@
 local logger = require("logger")
 local plugin_path = ((...) or ""):match("(.-)[^%.]+$") or ""
 local AIHelper = require(plugin_path .. "xray_aihelper")
+local xray_utils = require(plugin_path .. "xray_utils")
 
 -- Helper function to flatten KOReader's nested TOC tree
 local function flattenTOC(nodes, flat_list)
@@ -991,7 +992,7 @@ local function extractSentenceSnippet(text, match_pos, max_len)
         sent_end = math.min(sent_end, match_pos + half)
     end
 
-    return text:sub(sent_start, sent_end):gsub("^%s+", ""):gsub("%s+$", "")
+    return utf8_sub(text, sent_start, sent_end):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
 
@@ -1082,12 +1083,22 @@ function ChapterAnalyzer:findMentionsInChapter(ui, entity, toc_entry, next_toc_e
 
     -- Count occurrences of a needle in text_lower (used for frequency check)
     local function countIn(needle)
+        if not needle or needle == "" then return 0 end
         local escaped = needle:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1")
         local pattern = escaped
-        if #needle < 4 then
+        local starts_w = needle:sub(1, 1):match("%w") ~= nil
+        local ends_w = needle:sub(-1):match("%w") ~= nil
+        if #needle < 4 and starts_w and ends_w then
             pattern = "%f[%w]" .. escaped .. "%f[%W]"
         end
-        local _, n = text_lower:gsub(pattern, "")
+        local n = 0
+        local init = 1
+        while true do
+            local s, e = text_lower:find(pattern, init)
+            if not s then break end
+            n = n + 1
+            init = math.max(e + 1, s + 1)
+        end
         return n
     end
 
@@ -1239,7 +1250,13 @@ function ChapterAnalyzer:findMentionsInChapter(ui, entity, toc_entry, next_toc_e
         local is_single_word = not t.s:find("[%s%-]")
         if is_single_word then
             local safe_s = t.s:gsub("([%(%)%.%%%+%-%*%?%[%^%$])", "%%%1")
-            t.pattern = "%f[%w]" .. safe_s .. "%f[%W]"
+            local starts_w = safe_s:sub(1, 1):match("%w") ~= nil
+            local ends_w = safe_s:sub(-1):match("%w") ~= nil
+            if starts_w and ends_w then
+                t.pattern = "%f[%w]" .. safe_s .. "%f[%W]"
+            else
+                t.pattern = safe_s
+            end
             t.next_p = text_lower:find(t.pattern, pos)
         else
             t.next_p = text_lower:find(t.s, pos, true)
@@ -1283,7 +1300,7 @@ function ChapterAnalyzer:findMentionsInChapter(ui, entity, toc_entry, next_toc_e
             snippet = extractSentenceSnippet(raw_text, match_pos, 300),
         })
         
-        pos = match_pos + best_term.l
+        pos = match_pos + math.max(1, best_term.l or 1)
         
         -- Update ONLY the term we just found. Others are still valid if their next_p >= pos.
         for _, t in ipairs(terms) do
@@ -1344,6 +1361,7 @@ function ChapterAnalyzer:scanMentionsAsync(ui, entity, toc, min_page, max_page, 
     
     -- Cooperative multitasking using Coroutines
     local scan_co = coroutine.create(function()
+        local last_progress_time = 0
         for i = 1, total_chapters do
             if cancel_handle._cancelled then break end
 
@@ -1371,19 +1389,25 @@ function ChapterAnalyzer:scanMentionsAsync(ui, entity, toc, min_page, max_page, 
                     end
                 end
 
-                if on_progress then
+                local now = os.clock()
+                if on_progress and (now - last_progress_time >= 0.5 or i == total_chapters) then
+                    last_progress_time = now
                     on_progress(mentions, i, total_chapters)
                 end
             end
 
-            -- Force GC every chapter to keep memory pressure low
-            collectgarbage("collect")
+            -- Incremental GC step to keep memory bounded without freezing the event loop
+            collectgarbage("step", 100)
             
             -- Yield after each chapter
             coroutine.yield()
         end
         
-        if on_complete then on_complete(mentions) end
+        collectgarbage("collect")
+
+        if on_complete and not cancel_handle._cancelled then 
+            on_complete(mentions) 
+        end
     end)
 
     local function resumeScan()
@@ -1392,13 +1416,16 @@ function ChapterAnalyzer:scanMentionsAsync(ui, entity, toc, min_page, max_page, 
         local ok, err = coroutine.resume(scan_co)
         if not ok then
             logger.error("XRayPlugin: Mentions scan error:", err)
-            if on_complete then on_complete(mentions) end
+            if on_complete and not cancel_handle._cancelled then on_complete(mentions) end
             return
         end
 
         if coroutine.status(scan_co) ~= "dead" then
-            -- Schedule next chunk
-            local delay = 0.01
+            -- Schedule next chunk with device-aware delay
+            local delay = 0.02
+            if xray_utils and xray_utils.isLowPowerForScan and xray_utils:isLowPowerForScan() then
+                delay = 0.06
+            end
             UIManager:scheduleIn(delay, resumeScan)
         end
     end

@@ -338,16 +338,8 @@ function AIHelper:buildComprehensiveRequest(title, author, context, prompt_overr
                 
                 local system_instruction_text = (self.prompts and self.prompts.system_instruction or "Return valid JSON ONLY.") .. " You MUST output strictly valid JSON, starting with '{'."
                 
-                local req_body = {
-                    model = model,
-                    max_tokens = 8192,  -- default for non-thinking models; overridden below
-                    system = system_instruction_text,
-                    messages = {
-                        { role = "user", content = prompt },
-                        { role = "assistant", content = "{" }
-                    }
-                }
-                
+                local is_thinking = false
+                local thinking_budget = nil
                 if model:find("sonnet") or model:find("opus") or model:find("haiku") then
                     local current_effort = self.settings and self.settings.reasoning_effort
                     if current_effort then
@@ -358,16 +350,38 @@ function AIHelper:buildComprehensiveRequest(title, author, context, prompt_overr
                         if model:find("haiku") and budget > 2000 then
                             self:log(string.format("AIHelper: Haiku detected — capping thinking budget from %d to 2000 (haiku max_tokens=8192)", budget))
                             budget = 2000
-                            req_body.max_tokens = 8192
-                        else
-                            -- For sonnet/opus: dynamically scale max_tokens to always leave 8000 tokens for the JSON response.
-                            -- Without this, at 'high' effort budget_tokens==max_tokens leaving zero room for output.
-                            local output_reserve = 8000
-                            req_body.max_tokens = budget + output_reserve
                         end
-                        -- Claude extended thinking configuration
-                        req_body.thinking = { type = "enabled", budget_tokens = budget }
+                        thinking_budget = budget
+                        is_thinking = true
                     end
+                end
+
+                local claude_messages = {
+                    { role = "user", content = prompt }
+                }
+                -- Anthropic does not support assistant message prefill when thinking is enabled (must end with user message)
+                if not is_thinking then
+                    table.insert(claude_messages, { role = "assistant", content = "{" })
+                end
+
+                local req_body = {
+                    model = model,
+                    max_tokens = 8192,  -- default for non-thinking models; overridden below
+                    system = system_instruction_text,
+                    messages = claude_messages
+                }
+
+                if is_thinking then
+                    if model:find("haiku") then
+                        req_body.max_tokens = 8192
+                    else
+                        -- For sonnet/opus: dynamically scale max_tokens to always leave 8000 tokens for the JSON response.
+                        -- Without this, at 'high' effort budget_tokens==max_tokens leaving zero room for output.
+                        local output_reserve = 8000
+                        req_body.max_tokens = thinking_budget + output_reserve
+                    end
+                    -- Claude extended thinking configuration
+                    req_body.thinking = { type = "enabled", budget_tokens = thinking_budget }
                 end
                 
                 -- Per-slot "Is Reasoning Model" setting: raise token ceiling
@@ -2149,16 +2163,8 @@ function AIHelper:callClaude(prompt, config, current_model)
     
     local system_instruction_text = (self.prompts and self.prompts.system_instruction or "Return valid JSON ONLY.") .. " You MUST output strictly valid JSON, starting with '{'."
     
-    local req_body = {
-        model = model,
-        max_tokens = 8192,
-        system = system_instruction_text,
-        messages = {
-            { role = "user", content = prompt },
-            { role = "assistant", content = "{" }
-        }
-    }
-    
+    local is_thinking = false
+    local thinking_budget = nil
     -- Support thinking config for Claude models if enabled/supported
     if model:find("sonnet") or model:find("opus") or model:find("haiku") then
         local current_effort = self.settings and self.settings.reasoning_effort
@@ -2167,12 +2173,34 @@ function AIHelper:callClaude(prompt, config, current_model)
             local budget = effort_map[current_effort] or 4096
             if model:find("haiku") and budget > 2000 then
                 budget = 2000
-                req_body.max_tokens = 8192
-            else
-                req_body.max_tokens = budget + 8000
             end
-            req_body.thinking = { type = "enabled", budget_tokens = budget }
+            thinking_budget = budget
+            is_thinking = true
         end
+    end
+
+    local claude_messages = {
+        { role = "user", content = prompt }
+    }
+    -- Anthropic does not support assistant message prefill when thinking is enabled (must end with user message)
+    if not is_thinking then
+        table.insert(claude_messages, { role = "assistant", content = "{" })
+    end
+
+    local req_body = {
+        model = model,
+        max_tokens = 8192,
+        system = system_instruction_text,
+        messages = claude_messages
+    }
+
+    if is_thinking then
+        if model:find("haiku") then
+            req_body.max_tokens = 8192
+        else
+            req_body.max_tokens = thinking_budget + 8000
+        end
+        req_body.thinking = { type = "enabled", budget_tokens = thinking_budget }
     end
     
     local provider_id = nil

@@ -111,6 +111,9 @@ function XRayPlugin:init()
     local AIHelper = require(plugin_path .. "xray_aihelper")
     self.ai_helper = AIHelper
     self.ai_helper:init(self.path)
+
+    local ChapterAnalyzer = require(plugin_path .. "xray_chapteranalyzer")
+    self.chapter_analyzer = ChapterAnalyzer:new{ plugin = self }
     
     -- Check if xray_key.txt exists to auto-import keys if none are set
     if not self.ai_helper:hasApiKey() then

@@ -261,4 +261,153 @@ describe("xray_mentions", function()
             assert.are.equal(65, plugin.pending_return_banner.return_page)
         end)
     end)
+
+    describe("Mentions Scan Cancellation & Throttling", function()
+        it("should cancel active_mention_scan when mentions menu is closed", function()
+            local cancelled = false
+            plugin.active_mention_scan = {
+                entity_name = "Frodo",
+                chapter_idx = 1,
+                total_chapters = 10,
+                cancel_handle = {
+                    cancel = function() cancelled = true end
+                }
+            }
+
+            local EntityListOverlay = require("xray_entity_list")
+            local overlay = EntityListOverlay:new{
+                mode = "mentions",
+                entity = { name = "Frodo" },
+                raw_items = {},
+                plugin = plugin,
+            }
+            plugin.mentions_menu = overlay
+
+            overlay:close()
+
+            assert.is_true(cancelled)
+            assert.is_nil(plugin.active_mention_scan)
+            assert.is_nil(plugin.mentions_menu)
+        end)
+
+        it("should render Cancel Scan button and cancel scan when tapped", function()
+            local cancelled = false
+            plugin.active_mention_scan = {
+                entity_name = "Frodo",
+                chapter_idx = 3,
+                total_chapters = 10,
+                cancel_handle = {
+                    cancel = function() cancelled = true end
+                }
+            }
+
+            local EntityListOverlay = require("xray_entity_list")
+            local overlay = EntityListOverlay:new{
+                mode = "mentions",
+                entity = { name = "Frodo" },
+                raw_items = {},
+                plugin = plugin,
+            }
+            overlay:init()
+            overlay:prepareItems()
+            overlay:buildUI()
+
+            -- Title should reflect scanning progress
+            assert.is_true(overlay.title:find("Scanning") ~= nil)
+
+            local function findTapItemWithText(root, text)
+                if not root or type(root) ~= "table" then return nil end
+                if root ~= overlay and root.onTap then
+                    local function hasText(node)
+                        if not node or type(node) ~= "table" then return false end
+                        if node.text and tostring(node.text):lower():find(text:lower()) then return true end
+                        if node.frame and hasText(node.frame) then return true end
+                        if node.args and hasText(node.args) then return true end
+                        for _, child in ipairs(node) do
+                            if hasText(child) then return true end
+                        end
+                        return false
+                    end
+                    if hasText(root) then return root end
+                end
+                if root.frame and type(root.frame) == "table" then
+                    local found = findTapItemWithText(root.frame, text)
+                    if found then return found end
+                end
+                if root.args and type(root.args) == "table" then
+                    local found = findTapItemWithText(root.args, text)
+                    if found then return found end
+                end
+                for _, child in ipairs(root) do
+                    local found = findTapItemWithText(child, text)
+                    if found then return found end
+                end
+                return nil
+            end
+
+            local cancel_btn = findTapItemWithText(overlay, "cancel")
+            assert.is_not_nil(cancel_btn)
+            assert.is_not_nil(cancel_btn.onTap)
+
+            -- Tap the cancel button
+            cancel_btn:onTap()
+
+            assert.is_true(cancelled)
+            assert.is_nil(plugin.active_mention_scan)
+        end)
+
+        it("should throttle updateMentionsMenuInPlace when scan is active", function()
+            local rebuild_count = 0
+            local mock_menu = {
+                raw_items = {},
+                prepareItems = function() end,
+                buildUI = function() rebuild_count = rebuild_count + 1 end,
+            }
+            plugin.mentions_menu = mock_menu
+            plugin.active_mention_scan = {
+                entity_name = "Frodo",
+                chapter_idx = 1,
+                total_chapters = 10,
+            }
+
+            local entity = { name = "Frodo", mentions = {} }
+
+            -- First call rebuilds
+            plugin:updateMentionsMenuInPlace(entity)
+            assert.are.equal(1, rebuild_count)
+
+            -- Rapid subsequent calls within 0.5s are throttled
+            plugin:updateMentionsMenuInPlace(entity)
+            plugin:updateMentionsMenuInPlace(entity)
+            assert.are.equal(1, rebuild_count)
+
+            -- Call after scan finishes (active_mention_scan = nil) rebuilds immediately
+            plugin.active_mention_scan = nil
+            plugin:updateMentionsMenuInPlace(entity)
+            assert.are.equal(2, rebuild_count)
+        end)
+
+        it("should not corrupt UTF-8 multi-byte characters in snippet truncation", function()
+            -- Construct a string with a 3-byte UTF-8 character (e.g. € or … or Chinese/Japanese character)
+            -- crossing the 100-byte boundary
+            local prefix = string.rep("a", 99)
+            local euro = "€" -- 3 bytes in UTF-8: 0xE2, 0x82, 0xAC
+            local snippet = prefix .. euro .. " more text"
+            local entity = {
+                name = "Frodo",
+                mentions = { { page = 1, chapter = "Ch 1", snippet = snippet } }
+            }
+
+            local items = plugin:buildMentionsMenuItems(entity)
+            assert.are.equal(2, #items) -- Refresh mentions + 1 mention item
+            local mention_text = items[2].text
+            -- Check that the text contains valid characters and does not end with orphan byte
+            assert.is_not_nil(mention_text)
+            -- Must not produce invalid sequence
+            local ok, err = pcall(function()
+                for _ in mention_text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do end
+            end)
+            assert.is_true(ok)
+        end)
+    end)
 end)

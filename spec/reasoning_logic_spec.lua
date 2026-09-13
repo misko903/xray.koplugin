@@ -40,6 +40,9 @@ describe("AI Reasoning Logic", function()
             
             assert.is_nil(body.thinking)
             assert.are.equal(8192, body.max_tokens)
+            assert.are.equal(2, #body.messages)
+            assert.are.equal("user", body.messages[1].role)
+            assert.are.equal("assistant", body.messages[2].role)
         end)
 
         it("should include response_format=json_object for OpenAI when reasoning is unset", function()
@@ -84,6 +87,21 @@ describe("AI Reasoning Logic", function()
             
             assert.are.equal("medium", body.reasoning_effort)
             assert.is_nil(body.response_format)
+        end)
+
+        it("should include thinking block for Claude and omit assistant prefill when reasoning is set", function()
+            AIHelper.settings.primary_ai = { provider = "claude", model = "claude-3-7-sonnet" }
+            AIHelper.settings.reasoning_effort = "medium"
+            
+            local requests = AIHelper:buildComprehensiveRequest("Title", "Author", {})
+            local body = json.decode(requests[1].body)
+            
+            assert.is_not_nil(body.thinking)
+            assert.are.equal("enabled", body.thinking.type)
+            assert.are.equal(4096, body.thinking.budget_tokens)
+            assert.are.equal(12096, body.max_tokens)
+            assert.are.equal(1, #body.messages)
+            assert.are.equal("user", body.messages[1].role)
         end)
     end)
 

@@ -2,13 +2,30 @@
 
 local UIManager = require("ui/uimanager")
 local Menu = require("ui/widget/menu")
-local Screen = require("device").screen
+local Device = require("device")
+local Screen = Device.screen
 local Font = require("ui/font")
 local ButtonDialog = require("ui/widget/buttondialog")
 local Event = require("ui/event")
 
 local plugin_path = ((...) or ""):match("(.-)[^%.]+$") or ""
 local XRayConfig = require(plugin_path .. "xray_config")
+
+local function safe_utf8_truncate(s, max_bytes)
+    if not s or #s <= max_bytes then return s or "" end
+    local out, i, len = {}, 1, #s
+    while i <= len do
+        local lead = s:byte(i)
+        local width = (lead < 0x80 and 1) or (lead < 0xE0 and 2)
+            or (lead < 0xF0 and 3) or (lead < 0xF5 and 4) or 1
+        if (i + width - 1) > max_bytes then
+            break
+        end
+        out[#out + 1] = s:sub(i, i + width - 1)
+        i = i + width
+    end
+    return table.concat(out)
+end
 
 local M = {}
 
@@ -35,7 +52,8 @@ function M:showHighlightOverlay(boxes)
             end
         })
         UIManager:setDirty(self.ui.view.dialog, "ui")
-        if UIManager and type(UIManager.forceRePaint) == "function" then
+        local is_pb = Device and Device.isPocketBook and Device:isPocketBook()
+        if not is_pb and UIManager and type(UIManager.forceRePaint) == "function" then
             UIManager:forceRePaint()
         end
     end
@@ -216,6 +234,11 @@ function M:showMentionsForEntity(entity)
         return
     end
 
+    if not self.chapter_analyzer then
+        local ChapterAnalyzer = require(plugin_path .. "xray_chapteranalyzer")
+        self.chapter_analyzer = ChapterAnalyzer:new{ plugin = self }
+    end
+
     self.active_mention_scan = { entity_name = name, chapter_idx = 0, total_chapters = #toc, cancel_handle = nil }
     self.active_mention_scan.cancel_handle = self.chapter_analyzer:scanMentionsAsync(
         self.ui, entity, toc, min_page, max_page,
@@ -280,7 +303,8 @@ function M:buildMentionsMenuItems(entity)
     for _, m in ipairs(mentions) do
         local pg = m.page
         local snippet = m.snippet or ""
-        if #snippet > 100 then snippet = snippet:sub(1, 100):gsub("%s%S*$", "") .. "…" end        table.insert(items, {
+        if #snippet > 100 then snippet = safe_utf8_truncate(snippet, 100):gsub("%s%S*$", "") .. "…" end
+        table.insert(items, {
             text = "p." .. tostring(pg) .. " \xE2\x80\x94 " .. (m.chapter or "") .. ((snippet ~= "") and ("\n" .. snippet) or ""),
             keep_menu_open = true,
             callback = function()
@@ -308,9 +332,21 @@ function M:updateMentionsMenuInPlace(entity)
     if self.mentions_menu.raw_items ~= nil then
         self.mentions_menu.entity = entity
         self.mentions_menu.raw_items = entity.mentions or {}
-        self.mentions_menu:prepareItems()
-        self.mentions_menu:buildUI()
-        UIManager:setDirty(self.mentions_menu, "ui")
+        local is_scanning = self.active_mention_scan and self.active_mention_scan.entity_name == (entity and entity.name)
+        if is_scanning then
+            local now = os.clock()
+            if not self._last_mentions_ui_rebuild or (now - self._last_mentions_ui_rebuild >= 0.5) then
+                self._last_mentions_ui_rebuild = now
+                self.mentions_menu:prepareItems()
+                self.mentions_menu:buildUI()
+                UIManager:setDirty(self.mentions_menu, "ui")
+            end
+        else
+            self._last_mentions_ui_rebuild = nil
+            self.mentions_menu:prepareItems()
+            self.mentions_menu:buildUI()
+            UIManager:setDirty(self.mentions_menu, "ui")
+        end
     elseif self.mentions_menu.switchItemTable then
         local items = self:buildMentionsMenuItems(entity)
         local name = entity.name or "???"
@@ -337,7 +373,13 @@ function M:showMentionsMenu(entity)
         plugin = self,
         modal = true,
         covers_fullscreen = true,
-        on_close_callback = function() self.mentions_menu = nil end,
+        on_close_callback = function()
+            if self.active_mention_scan and self.active_mention_scan.cancel_handle then
+                self.active_mention_scan.cancel_handle:cancel()
+                self.active_mention_scan = nil
+            end
+            self.mentions_menu = nil
+        end,
     }
     UIManager:show(self.mentions_menu, "ui")
 end
@@ -697,7 +739,8 @@ function M:showImageReturnBanner(return_page, image_entry, current_page)
     end
 
     UIManager:show(self.return_banner)
-    if UIManager and type(UIManager.forceRePaint) == "function" then
+    local is_pb = Device and Device.isPocketBook and Device:isPocketBook()
+    if not is_pb and UIManager and type(UIManager.forceRePaint) == "function" then
         UIManager:forceRePaint()
     end
 

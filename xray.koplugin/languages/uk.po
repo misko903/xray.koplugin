@@ -193,6 +193,10 @@ msgstr "Збережено в кеш!"
 msgid "cancel"
 msgstr "Скасувати"
 
+# en-hash: 8ca52642289980168e6599c23ed1a785
+msgid "cancel_scan"
+msgstr "Скасувати сканування"
+
 # en-hash: 261d30af0907fa3e87d73d7719d2b4ef
 msgid "character_not_found"
 msgstr "Персонаж, що відповідає '%s', не знайдений"

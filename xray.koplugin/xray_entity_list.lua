@@ -33,6 +33,22 @@ local function sc(val)
     return (Screen and Screen.scaleBySize and Screen:scaleBySize(val)) or val
 end
 
+local function safe_utf8_truncate(s, max_bytes)
+    if not s or #s <= max_bytes then return s or "" end
+    local out, i, len = {}, 1, #s
+    while i <= len do
+        local lead = s:byte(i)
+        local width = (lead < 0x80 and 1) or (lead < 0xE0 and 2)
+            or (lead < 0xF0 and 3) or (lead < 0xF5 and 4) or 1
+        if (i + width - 1) > max_bytes then
+            break
+        end
+        out[#out + 1] = s:sub(i, i + width - 1)
+        i = i + width
+    end
+    return table.concat(out)
+end
+
 local _asset_path_cache = {}
 local function getAssetPath(filename)
     if _asset_path_cache[filename] then
@@ -654,7 +670,12 @@ function EntityListOverlay:close()
         elseif self.mode == "locations" then self.plugin.loc_menu = nil
         elseif self.mode == "historical_figures" then self.plugin.hf_menu = nil
         elseif self.mode == "timeline" then self.plugin.timeline_menu = nil
-        elseif self.mode == "mentions" then self.plugin.mentions_menu = nil
+        elseif self.mode == "mentions" then
+            if self.plugin.active_mention_scan and self.plugin.active_mention_scan.cancel_handle then
+                self.plugin.active_mention_scan.cancel_handle:cancel()
+                self.plugin.active_mention_scan = nil
+            end
+            self.plugin.mentions_menu = nil
         elseif self.mode == "linked_entries" then self.plugin.active_related_menu = nil
         end
     end
@@ -901,7 +922,7 @@ function EntityListOverlay:renderRow(item, content_w, row_h, is_focused, idx)
         local desc_str = item.event or ""
         desc_str = desc_str:gsub("%s+", " "):match("^%s*(.-)%s*$") or ""
         if #desc_str > 185 then
-            desc_str = desc_str:sub(1, 180) .. "..."
+            desc_str = safe_utf8_truncate(desc_str, 180) .. "..."
         end
 
         local desc_widget = nil
@@ -1153,7 +1174,7 @@ function EntityListOverlay:renderRow(item, content_w, row_h, is_focused, idx)
     end
     desc_str = desc_str:gsub("%s+", " "):match("^%s*(.-)%s*$") or ""
     if #desc_str > 185 then
-        desc_str = desc_str:sub(1, 180) .. "..."
+        desc_str = safe_utf8_truncate(desc_str, 180) .. "..."
     end
 
     local desc_widget = nil
@@ -1607,10 +1628,47 @@ function EntityListOverlay:buildUI()
             face = Font:getFace("cfont", 16),
             fgcolor = Blitbuffer.COLOR_DARK_GRAY,
         }
-        table.insert(page_content_vg, CenterContainer:new{
-            dimen = Geom:new{ w = sw, h = avail_content_h },
-            empty_w,
-        })
+        if self.mode == "mentions" and is_scanning then
+            local cancel_btn_frame = FrameContainer:new{
+                padding = sc(8),
+                padding_left = sc(20),
+                padding_right = sc(20),
+                bordersize = sc(1),
+                color = Blitbuffer.COLOR_BLACK,
+                background = Blitbuffer.Color8(235),
+                radius = sc(4),
+                TextWidget:new{
+                    text = (loc and loc:t("cancel_scan")) or (loc and loc:t("cancel")) or "Cancel Scan",
+                    face = Font:getFace("cfont", 16),
+                    fgcolor = Blitbuffer.COLOR_BLACK,
+                    bold = true,
+                }
+            }
+            local cancel_btn = makeTapItem(cancel_btn_frame, function()
+                if p and p.active_mention_scan and p.active_mention_scan.cancel_handle then
+                    p.active_mention_scan.cancel_handle:cancel()
+                end
+                if p then p.active_mention_scan = nil end
+                self:prepareItems()
+                self:buildUI()
+                UIManager:setDirty(self, "ui")
+            end)
+            local center_vg = VerticalGroup:new{
+                align = "center",
+                empty_w,
+                VerticalSpan:new{ width = sc(16) },
+                cancel_btn,
+            }
+            table.insert(page_content_vg, CenterContainer:new{
+                dimen = Geom:new{ w = sw, h = avail_content_h },
+                center_vg,
+            })
+        else
+            table.insert(page_content_vg, CenterContainer:new{
+                dimen = Geom:new{ w = sw, h = avail_content_h },
+                empty_w,
+            })
+        end
     else
         for idx, it in ipairs(page_items) do
             if it.is_prior_header then

@@ -364,4 +364,64 @@ describe("xray_chapteranalyzer", function()
             assert.is_true(called_with_self)
         end)
     end)
+
+    describe("findMentionsInChapter and scanMentionsAsync", function()
+        it("findMentionsInChapter extracts mentions with valid UTF-8 snippets", function()
+            local mock_text = "The journey was arduous. Frodo Baggins carried the One Ring to Mordor. The weight was unbearable."
+            local mock_ui = {
+                document = {
+                    getTextFromXPointers = function() return mock_text end,
+                    getTotalPages = function() return 100 end,
+                }
+            }
+            local entity = { name = "Frodo Baggins", role = "Ring-bearer" }
+            local toc_entry = { title = "Chapter 1", page = 10, xpointer = "xp_ch1" }
+            local next_entry = { title = "Chapter 2", page = 20, xpointer = "xp_ch2" }
+
+            local mentions = analyzer:findMentionsInChapter(mock_ui, entity, toc_entry, next_entry)
+            assert.is_not_nil(mentions)
+            assert.are.equal(1, #mentions)
+            assert.are.equal("Chapter 1", mentions[1].chapter)
+            assert.is_true(mentions[1].snippet:find("Frodo Baggins") ~= nil)
+        end)
+
+        it("scanMentionsAsync respects cancel handle and does not call on_complete after cancel", function()
+            local UIManager = require("ui/uimanager")
+            local orig_scheduleIn = UIManager.scheduleIn
+            local scheduled_fn = nil
+            UIManager.scheduleIn = function(self_arg, delay, fn)
+                local f = type(self_arg) == "table" and fn or delay
+                scheduled_fn = f
+            end
+
+            local chapters = {
+                { title = "Ch 1", page = 1, xpointer = "xp_1" },
+                { title = "Ch 2", page = 10, xpointer = "xp_2" },
+                { title = "Ch 3", page = 20, xpointer = "xp_3" },
+            }
+            local mock_ui = {
+                document = {
+                    getTextFromXPointers = function() return "Alice walked into the room." end,
+                    getTotalPages = function() return 50 end,
+                }
+            }
+            local entity = { name = "Alice", role = "Protagonist" }
+
+            local completed = false
+            local handle = analyzer:scanMentionsAsync(
+                mock_ui, entity, chapters, nil, nil,
+                nil,
+                function(m) completed = true end
+            )
+            assert.is_not_nil(handle)
+
+            handle:cancel()
+            if scheduled_fn then scheduled_fn() end
+
+            UIManager.scheduleIn = orig_scheduleIn
+
+            -- Completed should remain false because cancel was requested
+            assert.is_false(completed)
+        end)
+    end)
 end)

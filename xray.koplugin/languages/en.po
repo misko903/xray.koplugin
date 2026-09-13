@@ -146,6 +146,9 @@ msgstr "[Saved]"
 msgid "cancel"
 msgstr "Cancel"
 
+msgid "cancel_scan"
+msgstr "Cancel Scan"
+
 msgid "character_not_found"
 msgstr "No character found matching '%s'"
 

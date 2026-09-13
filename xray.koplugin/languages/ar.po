@@ -193,6 +193,10 @@ msgstr "تم الحفظ في الذاكرة المؤقتة!"
 msgid "cancel"
 msgstr "إلغاء"
 
+# en-hash: 8ca52642289980168e6599c23ed1a785
+msgid "cancel_scan"
+msgstr "إلغاء المسح"
+
 # en-hash: 261d30af0907fa3e87d73d7719d2b4ef
 msgid "character_not_found"
 msgstr "لم يتم العثور على شخصية تطابق '%s'"
