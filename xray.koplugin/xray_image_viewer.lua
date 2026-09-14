@@ -294,8 +294,8 @@ function ImageViewer:init()
         Actions = { { "Menu" }, { "a" }, { "A" }, { "." }, { "3" } },
         -- Enter: context-aware — activates focused toolbar button OR toggles zoom in image zone
         OpenFocused = { { "Return" }, { "KP_Enter" }, { "Enter" }, { "Select" }, { "Space" }, { "Press" } },
-        PrevImage = { { "PageUp" }, { "PrevPage" }, { "p" }, { "P" }, { "[" } },
-        NextImage = { { "PageDown" }, { "NextPage" }, { "]" } },
+        PrevImage = { { "PageUp" }, { "PrevPage" }, { "p" }, { "P" }, { "[" }, { "RPgBack" }, { "LPgBack" } },
+        NextImage = { { "PageDown" }, { "NextPage" }, { "]" }, { "RPgFwd" }, { "LPgFwd" } },
         -- Escape: context-aware — resets zoom / returns to toolbar; Back/Q always closes
         EscapeBack = { { "Escape" }, { "Back" }, { "q" }, { "Q" } },
     }
@@ -304,6 +304,8 @@ function ImageViewer:init()
         if Device.input.group.Enter then table.insert(self.key_events.OpenFocused, { Device.input.group.Enter }) end
         if Device.input.group.Select then table.insert(self.key_events.OpenFocused, { Device.input.group.Select }) end
         if Device.input.group.Back then table.insert(self.key_events.EscapeBack, { Device.input.group.Back }) end
+        if Device.input.group.PgBack then table.insert(self.key_events.PrevImage, { Device.input.group.PgBack }) end
+        if Device.input.group.PgFwd then table.insert(self.key_events.NextImage, { Device.input.group.PgFwd }) end
     end
 
     -- Ensure zoom starts at saved zoom or fit-to-viewport for the current rotation
@@ -792,9 +794,9 @@ function ImageViewer:handleEvent(ev)
             return self:onMinimize()
         elseif key == "a" or key == "A" or key == "Menu" or key == "." or key == "3" then
             return self:onActions()
-        elseif key == "p" or key == "P" or key == "PageUp" or key == "PrevPage" or key == "[" then
+        elseif key == "p" or key == "P" or key == "PageUp" or key == "PrevPage" or key == "[" or key == "RPgBack" or key == "LPgBack" then
             return self:onPrevImage()
-        elseif key == "PageDown" or key == "NextPage" or key == "]" then
+        elseif key == "PageDown" or key == "NextPage" or key == "]" or key == "RPgFwd" or key == "LPgFwd" then
             return self:onNextImage()
         elseif key == "Escape" or key == "Back" or key == "q" or key == "Q" then
             return self:onClose()

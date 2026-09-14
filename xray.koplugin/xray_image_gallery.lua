@@ -391,6 +391,8 @@ function ImageGallery:init()
             { "n" },
             { "N" },
             { "]" },
+            { "RPgFwd" },
+            { "LPgFwd" },
         },
         PrevPage = {
             { "PrevPage" },
@@ -398,6 +400,8 @@ function ImageGallery:init()
             { "p" },
             { "P" },
             { "[" },
+            { "RPgBack" },
+            { "LPgBack" },
         },
         OpenFocused = {
             { "Return" },
@@ -448,6 +452,8 @@ function ImageGallery:init()
         if Device.input.group.Enter then table.insert(self.key_events.OpenFocused, { Device.input.group.Enter }) end
         if Device.input.group.Select then table.insert(self.key_events.OpenFocused, { Device.input.group.Select }) end
         if Device.input.group.Back then table.insert(self.key_events.Close, { Device.input.group.Back }) end
+        if Device.input.group.PgFwd then table.insert(self.key_events.NextPage, { Device.input.group.PgFwd }) end
+        if Device.input.group.PgBack then table.insert(self.key_events.PrevPage, { Device.input.group.PgBack }) end
     end
 
     self:buildUI()
@@ -766,8 +772,19 @@ function ImageGallery:onSwipe(arg, ges)
 end
 
 function ImageGallery:handleEvent(ev)
+    if not ev then return false end
+
+    if ev.type == "NextPage" or ev.type == "GotoNextPage" then
+        return self:onNextPage()
+    elseif ev.type == "PrevPage" or ev.type == "GotoPrevPage" then
+        return self:onPrevPage()
+    end
+
     if ev.type == "Key" or ev.type == "KeyPress" or ev.type == "KeyDown" then
         local key = ev.key or ev.name or ev.sym
+        if type(key) == "table" then
+            key = key.key or key.name or ""
+        end
         if key == "Return" or key == "KP_Enter" or key == "Enter" or key == "Select" or key == "Space" or key == "Press" then
             return self:onOpenFocused()
         elseif key == "Up" then
@@ -786,9 +803,9 @@ function ImageGallery:handleEvent(ev)
             return self:onCycleTab()
         elseif key == "f" or key == "F" then
             return self:onToggleFilter()
-        elseif key == "p" or key == "P" or key == "PageUp" or key == "PrevPage" or key == "[" then
+        elseif key == "p" or key == "P" or key == "PageUp" or key == "PrevPage" or key == "[" or key == "RPgBack" or key == "LPgBack" then
             return self:onPrevPage()
-        elseif key == "n" or key == "N" or key == "PageDown" or key == "NextPage" or key == "]" then
+        elseif key == "n" or key == "N" or key == "PageDown" or key == "NextPage" or key == "]" or key == "RPgFwd" or key == "LPgFwd" then
             return self:onNextPage()
         elseif key == "Escape" or key == "Back" or key == "q" or key == "Q" then
             return self:onClose()

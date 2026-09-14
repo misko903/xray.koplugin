@@ -1729,6 +1729,86 @@ describe("xray_ui", function()
             -- Cancel button has default center alignment (nil)
             assert.is_nil(btns[4][1].align)
         end)
+
+        it("navigates forward and backward with hardware page turn buttons (RPgFwd, LPgFwd, RPgBack, LPgBack)", function()
+            local raw_items = {}
+            for i = 1, 30 do
+                table.insert(raw_items, { name = "Item " .. i, description = "Desc " .. i })
+            end
+
+            local overlay = EntityListOverlay:new{
+                plugin = plugin,
+                mode = "characters",
+                raw_items = raw_items,
+                is_touch_device = false,
+            }
+            assert.is_true(overlay.total_pages > 1)
+            assert.are.equal(1, overlay.current_page)
+
+            -- Test RPgFwd (Right Page Forward)
+            overlay:onKeyPress("RPgFwd")
+            assert.are.equal(2, overlay.current_page)
+
+            -- Test LPgFwd (Left Page Forward)
+            if overlay.total_pages >= 3 then
+                overlay:onKeyPress("LPgFwd")
+                assert.are.equal(3, overlay.current_page)
+                -- Test RPgBack (Right Page Back)
+                overlay:onKeyPress("RPgBack")
+                assert.are.equal(2, overlay.current_page)
+            end
+
+            -- Test LPgBack (Left Page Back)
+            overlay:onKeyPress("LPgBack")
+            assert.are.equal(1, overlay.current_page)
+
+            -- Boundary: cannot go before page 1
+            overlay:onKeyPress("LPgBack")
+            assert.are.equal(1, overlay.current_page)
+
+            -- Test key table format { key = "RPgFwd" }
+            overlay:onKeyPress({ key = "RPgFwd" })
+            assert.are.equal(2, overlay.current_page)
+
+            -- Test synthetic NextPage and PrevPage events
+            overlay:handleEvent({ type = "NextPage" })
+            local expected_p = math.min(3, overlay.total_pages)
+            assert.are.equal(expected_p, overlay.current_page)
+
+            overlay:handleEvent({ type = "PrevPage" })
+            assert.are.equal(expected_p - 1, overlay.current_page)
+
+            -- Test onKeyRepeat works identically to onKeyPress
+            overlay:onKeyRepeat("RPgBack")
+            assert.are.equal(1, overlay.current_page)
+        end)
+
+        it("allows hardware page turn buttons on touch devices (e.g. bluetooth pageturners / volume keys)", function()
+            local raw_items = {}
+            for i = 1, 30 do
+                table.insert(raw_items, { name = "Item " .. i, description = "Desc " .. i })
+            end
+
+            local overlay = EntityListOverlay:new{
+                plugin = plugin,
+                mode = "characters",
+                raw_items = raw_items,
+                is_touch_device = true,
+            }
+            assert.are.equal(1, overlay.current_page)
+            assert.is_nil(overlay.focus_zone)
+
+            -- Hardware page turn forward
+            overlay:onKeyPress("RPgFwd")
+            assert.are.equal(2, overlay.current_page)
+            -- Touch focus should not be forced into a visible zone
+            assert.is_nil(overlay.focus_zone)
+
+            -- Hardware page turn back
+            overlay:onKeyPress("RPgBack")
+            assert.are.equal(1, overlay.current_page)
+            assert.is_nil(overlay.focus_zone)
+        end)
     end)
 
     describe("EntityListOverlay prior books styling and timeline distinction", function()

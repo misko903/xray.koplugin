@@ -679,5 +679,68 @@ describe("X-Ray Non-Touch & Keyboard Support", function()
             assert.is_true(multi_gallery.prev_btn.enabled)
             assert.is_false(multi_gallery.next_btn.enabled)
         end)
+
+        it("allows hardware page turn buttons in ImageGallery (RPgFwd, LPgFwd, RPgBack, LPgBack)", function()
+            local many_images = {}
+            for i = 1, 15 do
+                table.insert(many_images, { id = "img" .. i, title = "Image " .. i, page = i })
+            end
+            mock_plugin.images = many_images
+            local multi_gallery = ImageGallery:new{
+                plugin = mock_plugin,
+                images = many_images,
+                view_mode = "grid",
+                tab = "all",
+            }
+            multi_gallery:buildUI()
+            assert.is_true(multi_gallery.total_pages > 1)
+            assert.are.equal(1, multi_gallery.current_page)
+
+            -- Turn next with RPgFwd
+            multi_gallery:handleEvent({ type = "Key", key = "RPgFwd" })
+            assert.are.equal(2, multi_gallery.current_page)
+
+            -- Turn next with LPgFwd
+            if multi_gallery.total_pages >= 3 then
+                multi_gallery:handleEvent({ type = "Key", key = "LPgFwd" })
+                assert.are.equal(3, multi_gallery.current_page)
+                -- Turn prev with RPgBack
+                multi_gallery:handleEvent({ type = "Key", key = "RPgBack" })
+                assert.are.equal(2, multi_gallery.current_page)
+            end
+
+            -- Turn prev with LPgBack
+            multi_gallery:handleEvent({ type = "Key", key = "LPgBack" })
+            assert.are.equal(1, multi_gallery.current_page)
+
+            -- Synthetic event
+            multi_gallery:handleEvent({ type = "NextPage" })
+            assert.are.equal(2, multi_gallery.current_page)
+            multi_gallery:handleEvent({ type = "PrevPage" })
+            assert.are.equal(1, multi_gallery.current_page)
+        end)
+
+        it("allows hardware page turn buttons in ImageViewer (RPgFwd, LPgFwd, RPgBack, LPgBack)", function()
+            local sample_images_list = {
+                { id = "img1", title = "First" },
+                { id = "img2", title = "Second" },
+                { id = "img3", title = "Third" },
+            }
+            mock_plugin.images = sample_images_list
+            local viewer = ImageViewer:new{
+                plugin = mock_plugin,
+                image_entry = sample_images_list[1],
+            }
+            local next_called = false
+            local prev_called = false
+            viewer.onNextImage = function() next_called = true; return true end
+            viewer.onPrevImage = function() prev_called = true; return true end
+
+            viewer:handleEvent({ type = "Key", key = "RPgFwd" })
+            assert.is_true(next_called)
+
+            viewer:handleEvent({ type = "Key", key = "RPgBack" })
+            assert.is_true(prev_called)
+        end)
     end)
 end)

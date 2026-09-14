@@ -64,14 +64,28 @@ The gallery features 4 dedicated focus zones connected smoothly via D-pad naviga
 
 Standard keyboard shortcuts across major features:
 
+### Paginated Entity Lists (`xray_entity_list.lua`)
+- `PageDown` / `NextPage` / `n` / `]` / `RPgFwd` / `LPgFwd`: Go to next page.
+- `PageUp` / `PrevPage` / `p` / `[` / `RPgBack` / `LPgBack`: Go to previous page.
+- `Home`: Go to first page.
+- `End`: Go to last page.
+- `Up` / `Down`: Move focus across list rows / cards.
+- `Left` / `Right`: Move focus within header / footer buttons, or page prev / next when cards are active.
+- `Select` / `Return` / `Enter` / `Space`: Open focused entity or trigger focused toolbar / footer action.
+- `1`–`9`: Direct number hotkeys to open item #1–9 on current page.
+- `f` / `/`: Open search dialog.
+- `s`: Open sort dialog.
+- `m`: Open merge dialog (Characters / Locations).
+- `Back` / `Escape` / `q`: Close list.
+
 ### Image Gallery (`xray_image_gallery.lua`)
 - `1`–`9`: Direct number selection to immediately open image #1–9 on current page.
 - `t` / `Tab`: Cycle through tabs (`All` → `Favorites` → `Series References` → `Hidden`).
 - `v`: Cycle through view modes (`Mosaic` → `Grid` → `List`).
 - `f`: Toggle filter mode (`Maps & Diagrams Only` ↔ `All Images`).
 - `a` / `A` / `Menu` / `.`: Open Image Actions menu for the currently focused image.
-- `PageDown` / `NextPage` / `n` / `]`: Go to next gallery page.
-- `PageUp` / `PrevPage` / `p` / `[`: Go to previous gallery page.
+- `PageDown` / `NextPage` / `n` / `]` / `RPgFwd` / `LPgFwd`: Go to next gallery page.
+- `PageUp` / `PrevPage` / `p` / `[` / `RPgBack` / `LPgBack`: Go to previous gallery page.
 - `Select` / `Return` / `Enter` / `Space`: Open focused image in Fullscreen Viewer.
 - `Back` / `Escape` / `q`: Close gallery.
 
@@ -83,14 +97,14 @@ Standard keyboard shortcuts across major features:
 - `i` / `I` / `n` / `N`: Toggle Invert / Night Mode.
 - `m` / `M`: Minimize viewer to book.
 - `a` / `A` / `Menu` / `.`: Open Image Actions menu.
-- `PageUp` / `PrevPage` / `p` / `[`: Previous image.
-- `PageDown` / `NextPage` / `]`: Next image.
+- `PageUp` / `PrevPage` / `p` / `[` / `RPgBack` / `LPgBack`: Previous image.
+- `PageDown` / `NextPage` / `]` / `RPgFwd` / `LPgFwd`: Next image.
 - `Return` / `KP_Enter` / `Enter` / `Select` / `Space`: Toggle zoom.
 - `Back` / `Escape` / `q`: Close viewer.
 
 ### Log Viewer (`XRayLogViewer`)
-- `Left` / `Up` / `PageUp` / `PrevPage` / `p`: Previous page.
-- `Right` / `Down` / `PageDown` / `NextPage` / `Space` / `n`: Next page.
+- `Left` / `Up` / `PageUp` / `PrevPage` / `p` / `RPgBack` / `LPgBack`: Previous page.
+- `Right` / `Down` / `PageDown` / `NextPage` / `Space` / `n` / `RPgFwd` / `LPgFwd`: Next page.
 - `r` / `R` / `F5`: Reload logs from disk.
 - `Back` / `Escape` / `q`: Close log viewer.
 

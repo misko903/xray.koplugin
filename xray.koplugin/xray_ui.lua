@@ -1047,10 +1047,24 @@ local function _attachMenuPaginationToLayout(menu)
     menu.key_events.NextPage = menu.key_events.NextPage or {}
     table.insert(menu.key_events.NextPage, { "PageDown" })
     table.insert(menu.key_events.NextPage, { "]" })
+    table.insert(menu.key_events.NextPage, { "RPgFwd" })
+    table.insert(menu.key_events.NextPage, { "LPgFwd" })
 
     menu.key_events.PrevPage = menu.key_events.PrevPage or {}
     table.insert(menu.key_events.PrevPage, { "PageUp" })
     table.insert(menu.key_events.PrevPage, { "[" })
+    table.insert(menu.key_events.PrevPage, { "RPgBack" })
+    table.insert(menu.key_events.PrevPage, { "LPgBack" })
+
+    local ok_dev, Device = pcall(require, "device")
+    if ok_dev and Device and Device.input and Device.input.group then
+        if Device.input.group.PgFwd then
+            table.insert(menu.key_events.NextPage, { Device.input.group.PgFwd })
+        end
+        if Device.input.group.PgBack then
+            table.insert(menu.key_events.PrevPage, { Device.input.group.PgBack })
+        end
+    end
 end
 
 function M:newMenu(var_name, args)
@@ -3232,6 +3246,8 @@ function XRayLogViewer:init()
             { "PageUp" },
             { "p" },
             { "P" },
+            { "RPgBack" },
+            { "LPgBack" },
         },
         NextPage = {
             { "Right" },
@@ -3240,6 +3256,8 @@ function XRayLogViewer:init()
             { "Space" },
             { "n" },
             { "N" },
+            { "RPgFwd" },
+            { "LPgFwd" },
         },
         Reload = {
             { "r" },
@@ -3253,6 +3271,14 @@ function XRayLogViewer:init()
             { "Q" },
         },
     }
+    if Device.input and Device.input.group then
+        if Device.input.group.PgFwd then
+            table.insert(self.key_events.NextPage, { Device.input.group.PgFwd })
+        end
+        if Device.input.group.PgBack then
+            table.insert(self.key_events.PrevPage, { Device.input.group.PgBack })
+        end
+    end
     if Device.hasKeys and Device:hasKeys() and Device.input and Device.input.group and Device.input.group.Back then
         table.insert(self.key_events.Close, { Device.input.group.Back })
     end

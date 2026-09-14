@@ -192,6 +192,35 @@ function EntityListOverlay:init()
     self.focus_zone = nil
     self.focused_index = nil
 
+    self.key_events = {
+        NextPage = {
+            { "NextPage" },
+            { "PageDown" },
+            { "n" },
+            { "N" },
+            { "]" },
+            { "RPgFwd" },
+            { "LPgFwd" },
+        },
+        PrevPage = {
+            { "PrevPage" },
+            { "PageUp" },
+            { "p" },
+            { "P" },
+            { "[" },
+            { "RPgBack" },
+            { "LPgBack" },
+        },
+    }
+    if ok_dev and Dev and Dev.input and Dev.input.group then
+        if Dev.input.group.PgFwd then
+            table.insert(self.key_events.NextPage, { Dev.input.group.PgFwd })
+        end
+        if Dev.input.group.PgBack then
+            table.insert(self.key_events.PrevPage, { Dev.input.group.PgBack })
+        end
+    end
+
     self.ges_events = {
         Tap = {
             GestureRange:new{
@@ -576,7 +605,7 @@ function EntityListOverlay:onOpenFocused()
 end
 
 function EntityListOverlay:onKeyPress(key)
-    local key_name = key and (key.key or key.name or key) or ""
+    local key_name = key and (key.key or key.name or (type(key) == "string" and key)) or ""
     return self:handleEvent({ type = "Key", key = key_name })
 end
 
@@ -584,29 +613,54 @@ function EntityListOverlay:onKeyDown(key)
     return self:onKeyPress(key)
 end
 
+function EntityListOverlay:onKeyRepeat(key)
+    return self:onKeyPress(key)
+end
+
 function EntityListOverlay:handleEvent(ev)
+    if not ev then return false end
+
+    if ev.type == "NextPage" or ev.type == "GotoNextPage" then
+        return self:onNextPage()
+    elseif ev.type == "PrevPage" or ev.type == "GotoPrevPage" then
+        return self:onPrevPage()
+    end
+
     if ev.type == "Key" or ev.type == "KeyPress" or ev.type == "KeyDown" then
         local key = ev.key or ev.name or ev.sym or ""
+        if type(key) == "table" then
+            key = key.key or key.name or ""
+        end
 
         local ok_dev, Device = pcall(require, "device")
         local extra_enter_keys = {}
         local extra_back_keys = {}
+        local extra_next_keys = {}
+        local extra_prev_keys = {}
         if ok_dev and Device and Device.input and Device.input.group then
             if Device.input.group.Enter then extra_enter_keys[Device.input.group.Enter] = true end
             if Device.input.group.Select then extra_enter_keys[Device.input.group.Select] = true end
             if Device.input.group.Back then extra_back_keys[Device.input.group.Back] = true end
+            if Device.input.group.PgFwd then
+                for _, k in ipairs(Device.input.group.PgFwd) do extra_next_keys[k] = true end
+            end
+            if Device.input.group.PgBack then
+                for _, k in ipairs(Device.input.group.PgBack) do extra_prev_keys[k] = true end
+            end
         end
 
         local UP_KEYS    = { Up=true, k=true, K=true }
         local DOWN_KEYS  = { Down=true, j=true, J=true }
         local LEFT_KEYS  = { Left=true, h=true, H=true }
         local RIGHT_KEYS = { Right=true, l=true, L=true }
-        local PAGE_PREV  = { PrevPage=true, PageUp=true, p=true, P=true, ["["]=true }
-        local PAGE_NEXT  = { NextPage=true, PageDown=true, n=true, N=true, ["]"]=true }
+        local PAGE_PREV  = { PrevPage=true, PageUp=true, p=true, P=true, ["["]=true, LPgBack=true, RPgBack=true }
+        local PAGE_NEXT  = { NextPage=true, PageDown=true, n=true, N=true, ["]"]=true, LPgFwd=true, RPgFwd=true }
         local ENTER_KEYS = { Return=true, Enter=true, KP_Enter=true, Select=true, Space=true, Press=true }
         local CLOSE_KEYS = { Escape=true, Back=true, q=true, Q=true }
         for k in pairs(extra_enter_keys) do ENTER_KEYS[k] = true end
         for k in pairs(extra_back_keys)  do CLOSE_KEYS[k] = true end
+        for k in pairs(extra_next_keys)  do PAGE_NEXT[k]  = true end
+        for k in pairs(extra_prev_keys)  do PAGE_PREV[k]  = true end
 
         if UP_KEYS[key] then
             return self:onFocusUp()
