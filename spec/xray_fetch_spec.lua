@@ -779,5 +779,80 @@ describe("xray_fetch", function()
             assert.is_true(plugin._active_ai_dialog.args.modal)
         end)
     end)
+
+    describe("fetchFromAI vs updateFromAI", function()
+        it("fetchFromAI triggers clean fetch without is_update", function()
+            local called_args = nil
+            plugin.continueWithFetch = function(self, reading_percent, is_update, last_fetch_page, is_silent)
+                called_args = {
+                    reading_percent = reading_percent,
+                    is_update = is_update,
+                    last_fetch_page = last_fetch_page,
+                    is_silent = is_silent,
+                }
+            end
+
+            plugin.ui.getCurrentPage = function() return 25 end
+            plugin.ui.document.getPageCount = function() return 100 end
+            plugin.ai_helper = {
+                settings = { spoiler_setting = "spoiler_free" }
+            }
+
+            plugin:fetchFromAI()
+
+            assert.is_not_nil(called_args)
+            assert.are.equal(25, called_args.reading_percent)
+            assert.is_nil(called_args.is_update)
+            assert.is_nil(called_args.last_fetch_page)
+        end)
+
+        it("fetchFromAI in full_book mode uses 100 percent without is_update", function()
+            local called_args = nil
+            plugin.continueWithFetch = function(self, reading_percent, is_update, last_fetch_page, is_silent)
+                called_args = {
+                    reading_percent = reading_percent,
+                    is_update = is_update,
+                    last_fetch_page = last_fetch_page,
+                }
+            end
+
+            plugin.ui.getCurrentPage = function() return 25 end
+            plugin.ui.document.getPageCount = function() return 100 end
+            plugin.ai_helper = {
+                settings = { spoiler_setting = "full_book" }
+            }
+
+            plugin:fetchFromAI()
+
+            assert.is_not_nil(called_args)
+            assert.are.equal(100, called_args.reading_percent)
+            assert.is_nil(called_args.is_update)
+        end)
+
+        it("updateFromAI triggers merge fetch with is_update = true and last_fetch_page", function()
+            local called_args = nil
+            plugin.continueWithFetch = function(self, reading_percent, is_update, last_fetch_page, is_silent)
+                called_args = {
+                    reading_percent = reading_percent,
+                    is_update = is_update,
+                    last_fetch_page = last_fetch_page,
+                }
+            end
+
+            plugin.ui.getCurrentPage = function() return 50 end
+            plugin.ui.document.getPageCount = function() return 100 end
+            plugin.book_data = { last_fetch_page = 30 }
+            plugin.ai_helper = {
+                settings = { spoiler_setting = "spoiler_free" }
+            }
+
+            plugin:updateFromAI()
+
+            assert.is_not_nil(called_args)
+            assert.are.equal(50, called_args.reading_percent)
+            assert.is_true(called_args.is_update)
+            assert.are.equal(30, called_args.last_fetch_page)
+        end)
+    end)
 end)
 

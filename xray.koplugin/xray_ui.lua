@@ -1298,6 +1298,46 @@ function M:closeAllMenus()
     end)
 end
 
+function M:hasXRayData()
+    if self.getMenuCounts then
+        local counts = self:getMenuCounts()
+        return counts.characters > 0
+            or counts.timeline > 0
+            or counts.locations > 0
+            or counts.historical_figures > 0
+            or counts.terms > 0
+    end
+    return (self.characters and #self.characters > 0)
+        or (self.timeline and #self.timeline > 0)
+        or (self.locations and #self.locations > 0)
+        or (self.historical_figures and #self.historical_figures > 0)
+        or (self.terms and #self.terms > 0)
+end
+
+function M:_promptNoDataFetch()
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local dlg
+    dlg = ButtonDialog:new{
+        title = self.loc:t("no_data_prompt")
+            or "No X-Ray data found for this book. Would you like to fetch it from AI now?",
+        buttons = {{
+            {
+                text = self.loc:t("cancel") or "Cancel",
+                callback = function() UIManager:close(dlg) end,
+            },
+            {
+                text = self.loc:t("fetch_button") or "Fetch",
+                is_enter_default = true,
+                callback = function()
+                    UIManager:close(dlg)
+                    self:fetchFromAI()
+                end,
+            },
+        }},
+    }
+    UIManager:show(dlg)
+end
+
 function M:showCharacters()
     self.characters = self.characters or {}
 
@@ -3064,6 +3104,10 @@ end
 
 function M:showLocations()
     self.locations = self.locations or {}
+    if not self:hasXRayData() then
+        self:_promptNoDataFetch()
+        return
+    end
     if #self.locations == 0 then 
         local InfoMessage = require("ui/widget/infomessage")
         UIManager:show(InfoMessage:new{ text = self.loc:t("no_location_data"), timeout = 3 })
@@ -3153,6 +3197,50 @@ function M:showAbout()
         }},
     }
     UIManager:show(about_dlg)
+end
+
+function M:_clearAIData()
+    self.characters = {}
+    self.locations = {}
+    self.timeline = {}
+    self.historical_figures = {}
+    self.terms = {}
+    self.terms_fetched = false
+    self.author_info = nil
+    if self.book_data then
+        self.book_data.characters = {}
+        self.book_data.locations = {}
+        self.book_data.timeline = {}
+        self.book_data.historical_figures = {}
+        self.book_data.terms = {}
+        self.book_data.last_fetch_page = nil
+    end
+end
+
+function M:confirmAndRebuildXRay()
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local dialog
+    dialog = ButtonDialog:new{
+        title = self.loc:t("rebuild_confirm_title") or "Rebuild X-Ray Data",
+        text  = self.loc:t("rebuild_confirm_text")
+            or "This will discard all cached X-Ray data for this book and fetch fresh data from AI.\n\nContinue?",
+        buttons = {{
+            {
+                text = self.loc:t("cancel") or "Cancel",
+                callback = function() UIManager:close(dialog) end,
+            },
+            {
+                text = self.loc:t("rebuild_confirm_btn") or "Rebuild",
+                is_enter_default = true,
+                callback = function()
+                    UIManager:close(dialog)
+                    self:_clearAIData()
+                    UIManager:nextTick(function() self:fetchFromAI() end)
+                end,
+            },
+        }},
+    }
+    UIManager:show(dialog)
 end
 
 function M:clearCache()
@@ -3738,6 +3826,10 @@ function M:toggleXRayMode()
 end
 
 function M:showTimeline()
+    if not self:hasXRayData() then
+        self:_promptNoDataFetch()
+        return
+    end
     if not self.timeline or #self.timeline == 0 then
         local InfoMessage = require("ui/widget/infomessage")
         UIManager:show(InfoMessage:new{ text = self.loc:t("no_timeline_data"), timeout = 3 })
@@ -4101,6 +4193,10 @@ function M:showHistoricalFigureDetails(fig, opts)
 end
 
 function M:showHistoricalFigures()
+    if not self:hasXRayData() then
+        self:_promptNoDataFetch()
+        return
+    end
     if not self.historical_figures or #self.historical_figures == 0 then 
         local InfoMessage = require("ui/widget/infomessage")
         UIManager:show(InfoMessage:new{ text = self.loc:t("no_historical_data"), timeout = 3 })

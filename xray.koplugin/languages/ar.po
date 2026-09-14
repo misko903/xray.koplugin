@@ -869,6 +869,10 @@ msgstr "جلب المزيد من المصطلحات"
 msgid "menu_fetch_series_context"
 msgstr "جلب / تحديث سياق السلسلة"
 
+# en-hash: b8b0b262311d61e02603a9141ec1d8a2
+msgid "menu_fetch_xray"
+msgstr "جلب بيانات X-Ray"
+
 # en-hash: 7cf395303ce3665a9834721d4b748e4b
 msgid "menu_frequency"
 msgstr "التردد"
@@ -916,6 +920,10 @@ msgstr "نموذج الذكاء الاصطناعي الأساسي"
 # en-hash: 22b189dd0fe1b07c3174e8a676a0fe3c
 msgid "menu_reasoning_effort"
 msgstr "جهد تفكير الذكاء الاصطناعي"
+
+# en-hash: e6715670e7b8c78618954705045a1599
+msgid "menu_rebuild_xray"
+msgstr "إعادة بناء بيانات X-Ray (جلب نظيف)"
 
 # en-hash: 3e8a42af68c64edd3ce4f9d3d4da0147
 msgid "menu_secondary_ai_model"
@@ -1200,6 +1208,18 @@ msgstr "متوسط"
 # en-hash: e22876a23ad77be581ada0285360983a
 msgid "reasoning_unset"
 msgstr "غير معين (الافتراضي)"
+
+# en-hash: 1c6aac0280240c97962b30423f1f852b
+msgid "rebuild_confirm_btn"
+msgstr "إعادة بناء"
+
+# en-hash: 0b9d064b6a4725acbe72220a8b042acc
+msgid "rebuild_confirm_text"
+msgstr "سيؤدي هذا إلى تجاهل كافة بيانات X-Ray المخزنة مؤقتًا لهذا الكتاب وجلب بيانات جديدة من الذكاء الاصطناعي.\n\nهل تريد الاستمرار؟"
+
+# en-hash: 28d57012d4eada5bfcadc8447e1550ea
+msgid "rebuild_confirm_title"
+msgstr "إعادة بناء بيانات X-Ray"
 
 # en-hash: d98ac12774fca5c3cbaffe276840c55f
 msgid "reject_pair"

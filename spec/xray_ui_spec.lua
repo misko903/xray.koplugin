@@ -2364,6 +2364,185 @@ describe("xray_ui", function()
             assert.are.equal("Owen Quine", overlay.items[5].name)
         end)
     end)
+
+    describe("hasXRayData and empty state prompts", function()
+        it("hasXRayData returns false when all tables are empty", function()
+            plugin.characters = {}
+            plugin.locations = {}
+            plugin.timeline = {}
+            plugin.historical_figures = {}
+            plugin.terms = {}
+
+            assert.is_false(plugin:hasXRayData())
+        end)
+
+        it("hasXRayData returns true when any table has entries", function()
+            plugin.characters = { { name = "Alice" } }
+            plugin.locations = {}
+            plugin.timeline = {}
+            plugin.historical_figures = {}
+            plugin.terms = {}
+
+            assert.is_true(plugin:hasXRayData())
+
+            plugin.characters = {}
+            plugin.locations = { { name = "Wonderland" } }
+            assert.is_true(plugin:hasXRayData())
+        end)
+
+        it("_promptNoDataFetch shows confirmation dialog and executes fetchFromAI when accepted", function()
+            local fetch_called = false
+            plugin.fetchFromAI = function() fetch_called = true end
+
+            plugin:_promptNoDataFetch()
+
+            local last = _G.ui_tracker.last_shown
+            assert.is_not_nil(last)
+            assert.are.equal("ButtonDialog", last.type)
+            assert.truthy(last.title:find("no_data_prompt"))
+
+            -- Second button is fetch (is_enter_default = true)
+            local fetch_btn = last.buttons[1][2]
+            assert.is_not_nil(fetch_btn)
+            assert.is_true(fetch_btn.is_enter_default)
+
+            fetch_btn.callback()
+            assert.is_true(fetch_called)
+        end)
+
+        it("showTimeline prompts for fetch when no data in book", function()
+            plugin.timeline = {}
+            plugin.characters = {}
+            plugin.locations = {}
+            plugin.historical_figures = {}
+            plugin.terms = {}
+
+            plugin:showTimeline()
+
+            local last = _G.ui_tracker.last_shown
+            assert.are.equal("ButtonDialog", last.type)
+            assert.truthy(last.title:find("no_data_prompt"))
+        end)
+
+        it("showTimeline shows InfoMessage when book has data but timeline is empty", function()
+            plugin.timeline = {}
+            plugin.characters = { { name = "Alice" } }
+
+            plugin:showTimeline()
+
+            local last = _G.ui_tracker.last_shown
+            assert.are.equal("InfoMessage", last.type)
+            assert.are.equal("no_timeline_data", last.args.text)
+        end)
+
+        it("showLocations prompts for fetch when no data in book", function()
+            plugin.locations = {}
+            plugin.characters = {}
+            plugin.timeline = {}
+            plugin.historical_figures = {}
+            plugin.terms = {}
+
+            plugin:showLocations()
+
+            local last = _G.ui_tracker.last_shown
+            assert.are.equal("ButtonDialog", last.type)
+            assert.truthy(last.title:find("no_data_prompt"))
+        end)
+
+        it("showLocations shows InfoMessage when book has data but locations is empty", function()
+            plugin.locations = {}
+            plugin.characters = { { name = "Alice" } }
+
+            plugin:showLocations()
+
+            local last = _G.ui_tracker.last_shown
+            assert.are.equal("InfoMessage", last.type)
+            assert.are.equal("no_location_data", last.args.text)
+        end)
+
+        it("showHistoricalFigures prompts for fetch when no data in book", function()
+            plugin.historical_figures = {}
+            plugin.characters = {}
+            plugin.timeline = {}
+            plugin.locations = {}
+            plugin.terms = {}
+
+            plugin:showHistoricalFigures()
+
+            local last = _G.ui_tracker.last_shown
+            assert.are.equal("ButtonDialog", last.type)
+            assert.truthy(last.title:find("no_data_prompt"))
+        end)
+
+        it("showHistoricalFigures shows InfoMessage when book has data but historical figures is empty", function()
+            plugin.historical_figures = {}
+            plugin.characters = { { name = "Alice" } }
+
+            plugin:showHistoricalFigures()
+
+            local last = _G.ui_tracker.last_shown
+            assert.are.equal("InfoMessage", last.type)
+            assert.are.equal("no_historical_data", last.args.text)
+        end)
+
+        it("_clearAIData resets in-memory data tables and book_data fetch position", function()
+            plugin.characters = { { name = "Alice" } }
+            plugin.locations = { { name = "London" } }
+            plugin.timeline = { { event = "War" } }
+            plugin.historical_figures = { { name = "King" } }
+            plugin.terms = { { name = "Magic" } }
+            plugin.terms_fetched = true
+            plugin.author_info = { name = "Author" }
+            plugin.book_data = {
+                characters = { { name = "Alice" } },
+                locations = { { name = "London" } },
+                timeline = { { event = "War" } },
+                historical_figures = { { name = "King" } },
+                terms = { { name = "Magic" } },
+                last_fetch_page = 42,
+                series_slug = "my_series"
+            }
+
+            plugin:_clearAIData()
+
+            assert.are.equal(0, #plugin.characters)
+            assert.are.equal(0, #plugin.locations)
+            assert.are.equal(0, #plugin.timeline)
+            assert.are.equal(0, #plugin.historical_figures)
+            assert.are.equal(0, #plugin.terms)
+            assert.is_false(plugin.terms_fetched)
+            assert.is_nil(plugin.author_info)
+            assert.are.equal(0, #plugin.book_data.characters)
+            assert.are.equal(0, #plugin.book_data.locations)
+            assert.are.equal(0, #plugin.book_data.timeline)
+            assert.are.equal(0, #plugin.book_data.historical_figures)
+            assert.are.equal(0, #plugin.book_data.terms)
+            assert.is_nil(plugin.book_data.last_fetch_page)
+            -- Preserves series_slug
+            assert.are.equal("my_series", plugin.book_data.series_slug)
+        end)
+
+        it("confirmAndRebuildXRay shows confirmation dialog and clears data on Rebuild", function()
+            local fetch_called = false
+            plugin.fetchFromAI = function() fetch_called = true end
+            plugin.characters = { { name = "Alice" } }
+
+            plugin:confirmAndRebuildXRay()
+
+            local last = _G.ui_tracker.last_shown
+            assert.is_not_nil(last)
+            assert.are.equal("ButtonDialog", last.type)
+            assert.truthy(last.title:find("rebuild_confirm_title"))
+
+            -- Button 2 is Rebuild
+            local rebuild_btn = last.buttons[1][2]
+            assert.are.equal("rebuild_confirm_btn", rebuild_btn.text)
+            rebuild_btn.callback()
+
+            assert.are.equal(0, #plugin.characters)
+            assert.is_true(fetch_called)
+        end)
+    end)
 end)
 
 

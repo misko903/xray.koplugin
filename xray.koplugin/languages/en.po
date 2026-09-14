@@ -653,6 +653,9 @@ msgstr "Fetch More Terms"
 msgid "menu_fetch_series_context"
 msgstr "Fetch / Refresh Series Context"
 
+msgid "menu_fetch_xray"
+msgstr "Fetch X-Ray Data"
+
 msgid "menu_frequency"
 msgstr "Frequency"
 
@@ -688,6 +691,9 @@ msgstr "Primary AI Model"
 
 msgid "menu_reasoning_effort"
 msgstr "AI Model Reasoning Effort"
+
+msgid "menu_rebuild_xray"
+msgstr "Rebuild X-Ray Data (Clean Fetch)"
 
 msgid "menu_secondary_ai_model"
 msgstr "Secondary AI Model"
@@ -901,6 +907,15 @@ msgstr "Medium"
 
 msgid "reasoning_unset"
 msgstr "Unset (Default)"
+
+msgid "rebuild_confirm_btn"
+msgstr "Rebuild"
+
+msgid "rebuild_confirm_text"
+msgstr "This will discard all cached X-Ray data for this book and fetch fresh data from AI.\n\nContinue?"
+
+msgid "rebuild_confirm_title"
+msgstr "Rebuild X-Ray Data"
 
 msgid "reject_pair"
 msgstr "Reject"

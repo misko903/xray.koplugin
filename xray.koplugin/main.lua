@@ -1345,10 +1345,25 @@ function XRayPlugin:getSubMenuItems()
         separator = true,
     })
 
+    local has_xray_data = self:hasXRayData()
     table.insert(items, {
-        text = self.loc:t("menu_update_xray") or "Update X-Ray Data (Merge)",
+        text = has_xray_data and (self.loc:t("menu_update_xray") or "Update X-Ray Data (Merge)")
+            or (self.loc:t("menu_fetch_xray") or "Fetch X-Ray Data"),
+        text_func = function()
+            if self:hasXRayData() then
+                return self.loc:t("menu_update_xray") or "Update X-Ray Data (Merge)"
+            else
+                return self.loc:t("menu_fetch_xray") or "Fetch X-Ray Data"
+            end
+        end,
         keep_menu_open = true,
-        callback = function() self:updateFromAI() end,
+        callback = function()
+            if self:hasXRayData() then
+                self:updateFromAI()
+            else
+                self:fetchFromAI()
+            end
+        end,
         separator = true,
     })
 
@@ -1672,6 +1687,12 @@ function XRayPlugin:getSubMenuItems()
         text = self.loc:t("menu_maintenance") or "Maintenance",
         keep_menu_open = true,
         sub_item_table = {
+            {
+                text = self.loc:t("menu_rebuild_xray") or "Rebuild X-Ray Data (Clean Fetch)",
+                keep_menu_open = true,
+                callback = function() self:confirmAndRebuildXRay() end,
+                separator = true,
+            },
             {
                 text = self.loc:t("menu_clear_cache"),
                 keep_menu_open = true,
