@@ -1,9 +1,9 @@
 -- xray_book_picker.lua — Custom Book Picker dialog for KOReader X-Ray
--- Provides an intuitive directory browser for adding books to series rosters,
--- supporting both List View and Cover View, styled after Storefront and Libbee pickers.
+-- Provides an intuitive directory browser for adding books to series rosters.
+-- Features pure List View, Feather icons, fixed dialog sizing/centering,
+-- and duplicate book validation.
 
 local Blitbuffer = require("ffi/blitbuffer")
-local Button = require("ui/widget/button")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local Device = require("device")
 local Font = require("ui/font")
@@ -13,9 +13,9 @@ local GestureRange = require("ui/gesturerange")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local HorizontalSpan = require("ui/widget/horizontalspan")
 local ImageWidget = require("ui/widget/imagewidget")
+local InfoMessage = require("ui/widget/infomessage")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local LineWidget = require("ui/widget/linewidget")
-local TextBoxWidget = require("ui/widget/textboxwidget")
 local TextWidget = require("ui/widget/textwidget")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
@@ -116,80 +116,6 @@ local function truncateToWidth(text, max_w, face, bold, ellipsis)
     return table.concat(chars, "", 1, best) .. ellipsis
 end
 
-local function formatTwoLinesMax(text, max_w, face, bold)
-    if not text or text == "" then return "" end
-    text = text:gsub("[\r\n]+", " "):match("^%s*(.-)%s*$") or ""
-    if getTextWidth(text, face, bold) <= max_w then
-        return text
-    end
-
-    local words = {}
-    for w in text:gmatch("%S+") do
-        table.insert(words, w)
-    end
-
-    local line1 = ""
-    local line1_word_count = 0
-
-    if #words > 1 then
-        for i, w in ipairs(words) do
-            local test_line = (line1 == "") and w or (line1 .. " " .. w)
-            if getTextWidth(test_line, face, bold) <= max_w then
-                line1 = test_line
-                line1_word_count = i
-            else
-                break
-            end
-        end
-    end
-
-    local remainder = ""
-    if line1_word_count > 0 and line1_word_count < #words then
-        local rem_words = {}
-        for i = line1_word_count + 1, #words do
-            table.insert(rem_words, words[i])
-        end
-        remainder = table.concat(rem_words, " ")
-    else
-        local chars = {}
-        for c in text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
-            table.insert(chars, c)
-        end
-        local low = 1
-        local high = #chars
-        local best = 1
-        while low <= high do
-            local mid = math.floor((low + high) / 2)
-            local sub = table.concat(chars, "", 1, mid)
-            if getTextWidth(sub, face, bold) <= max_w then
-                best = mid
-                low = mid + 1
-            else
-                high = mid - 1
-            end
-        end
-        line1 = table.concat(chars, "", 1, best)
-        if best < #chars then
-            remainder = table.concat(chars, "", best + 1):match("^%s*(.-)%s*$") or ""
-        else
-            remainder = ""
-        end
-    end
-
-    if remainder == "" then
-        return line1
-    end
-
-    local line2
-    if getTextWidth(remainder, face, bold) <= max_w then
-        line2 = remainder
-    else
-        line2 = truncateToWidth(remainder, max_w, face, bold, "...")
-    end
-
-    return line1 .. "\n" .. line2
-end
-
 local function formatSize(bytes)
     if not bytes or bytes <= 0 then return "0 KB" end
     if bytes >= 1024 * 1024 then
@@ -197,6 +123,87 @@ local function formatSize(bytes)
     else
         return string.format("%d KB", math.ceil(bytes / 1024))
     end
+end
+
+local function makeTapItem(frame, callback, fallback_w, fallback_h)
+    local item = InputContainer:new{ frame }
+    item.dimen = Geom:new{ w = fallback_w or sc(300), h = fallback_h or sc(38) }
+    item.ges_events = {
+        Tap = {
+            GestureRange:new{
+                ges = "tap",
+                range = function()
+                    return item.dimen or (frame.getSize and frame:getSize()) or Geom:new{ w = fallback_w or sc(300), h = fallback_h or sc(38) }
+                end
+            }
+        }
+    }
+    item.onTap = function()
+        if callback then callback() end
+        return true
+    end
+    item.onTapSelect = function()
+        if callback then callback() end
+        return true
+    end
+    return item
+end
+
+local function createCustomBtn(opts)
+    opts = opts or {}
+    local is_focused = opts.is_focused == true
+    local is_enabled = opts.enabled ~= false
+    local btn_w = opts.width or sc(80)
+    local btn_h = opts.height or sc(34)
+
+    local hg = HorizontalGroup:new{ align = "center" }
+    if opts.icon then
+        local icon_sz = opts.icon_size or sc(16)
+        table.insert(hg, ImageWidget:new{
+            file = getAssetPath(opts.icon),
+            width = icon_sz,
+            height = icon_sz,
+            scale_factor = 0,
+            is_icon = true,
+            alpha = true,
+        })
+    end
+    if opts.icon and opts.text then
+        table.insert(hg, HorizontalSpan:new{ width = opts.gap or sc(6) })
+    end
+    if opts.text then
+        local fg = Blitbuffer.COLOR_BLACK
+        if not is_enabled then
+            fg = theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY
+        end
+        table.insert(hg, TextWidget:new{
+            text = opts.text,
+            face = Font:getFace("cfont", opts.text_size or 13),
+            bold = opts.bold ~= false,
+            fgcolor = fg,
+        })
+    end
+
+    local border_sz = is_focused and sc(3) or (opts.bordersize or sc(1))
+    local border_col = is_focused and Blitbuffer.COLOR_BLACK or (opts.border_color or theme.color_section_rule or Blitbuffer.COLOR_GRAY_B)
+    local bg_col = is_focused and (theme.color_focus_bg or Blitbuffer.Color8(215)) or (opts.background or Blitbuffer.COLOR_WHITE)
+
+    local frame = FrameContainer:new{
+        width = btn_w,
+        height = btn_h,
+        padding = 0,
+        bordersize = border_sz,
+        color = border_col,
+        background = bg_col,
+        radius = opts.radius or theme.radius_btn or sc(4),
+        CenterContainer:new{
+            dimen = Geom:new{ w = btn_w, h = btn_h },
+            hg,
+        }
+    }
+
+    local cb = is_enabled and opts.callback or nil
+    return makeTapItem(frame, cb, btn_w, btn_h)
 end
 
 function M.getParentPath(path)
@@ -289,215 +296,8 @@ function M.scanDirectory(path)
     return subdirs, books
 end
 
-local _cover_cache = {}
-
 function M.getBookCoverBlitBuffer(filepath, target_w, target_h)
-    if not filepath or filepath == "" then return nil end
-    local cache_key = filepath .. ":" .. tostring(target_w) .. "x" .. tostring(target_h)
-    if _cover_cache[cache_key] ~= nil then
-        return _cover_cache[cache_key] or nil
-    end
-
-    local ok_ri, RenderImage = pcall(require, "ui/renderimage")
-    if not ok_ri or not RenderImage then
-        _cover_cache[cache_key] = false
-        return nil
-    end
-
-    local cover_bb = nil
-
-    -- 1. Fast companion image file check next to book (standard in Calibre and book libraries)
-    -- e.g. "Book Title.jpg", "cover.jpg", "cover.png"
-    local dir, filename = filepath:match("^(.*)[/\\]([^/\\]+)$")
-    local base_name = filename and filename:gsub("%.[^%.]+$", "")
-    if dir and base_name then
-        local candidates = {
-            dir .. "/" .. base_name .. ".jpg",
-            dir .. "/" .. base_name .. ".jpeg",
-            dir .. "/" .. base_name .. ".png",
-            dir .. "/cover.jpg",
-            dir .. "/cover.jpeg",
-            dir .. "/cover.png",
-        }
-        for _, img_path in ipairs(candidates) do
-            local f = io.open(img_path, "rb")
-            if f then
-                f:close()
-                local ok_img, ibb = pcall(function()
-                    return RenderImage:renderImageFile(img_path, false)
-                end)
-                if ok_img and ibb then
-                    cover_bb = ibb
-                    break
-                end
-            end
-        end
-    end
-
-    -- 2. Fast check: custom cover via DocSettings
-    if not cover_bb then
-        local ok_ds, DocSettings = pcall(require, "docsettings")
-        if ok_ds and DocSettings and DocSettings.findCustomCoverFile then
-            local ok_c, custom_file = pcall(function()
-                return DocSettings:findCustomCoverFile(filepath)
-            end)
-            if ok_c and custom_file then
-                local ok_img, ibb = pcall(function()
-                    return RenderImage:renderImageFile(custom_file, false)
-                end)
-                if ok_img and ibb then
-                    cover_bb = ibb
-                end
-            end
-        end
-    end
-
-    -- 3. Check CoverBrowser / BookInfoManager cache (if already indexed in SQLite)
-    if not cover_bb then
-        local ok_bim, BookInfoManager = pcall(require, "bookinfomanager")
-        if ok_bim and BookInfoManager and BookInfoManager.getBookInfo then
-            local ok_info, info = pcall(function()
-                return BookInfoManager:getBookInfo(filepath, true)
-            end)
-            if ok_info and info and info.cover_bb then
-                cover_bb = info.cover_bb
-            end
-        end
-    end
-
-    -- 4. If the book is already open in the active reader document, get cover from memory
-    if not cover_bb then
-        local ok_reg, DocumentRegistry = pcall(require, "document/documentregistry")
-        if ok_reg and DocumentRegistry and DocumentRegistry.getReferenceCount then
-            if DocumentRegistry:getReferenceCount(filepath) > 0 then
-                local ok_doc, doc = pcall(DocumentRegistry.openDocument, DocumentRegistry, filepath)
-                if ok_doc and doc then
-                    local ok_cbb, cbb = pcall(function() return doc:getCoverPageImage() end)
-                    pcall(function() doc:close() end)
-                    if ok_cbb and cbb then
-                        cover_bb = cbb
-                    end
-                end
-            end
-        end
-    end
-
-    if not cover_bb then
-        _cover_cache[cache_key] = false
-        return nil
-    end
-
-    -- Scale to fit target dimensions
-    if RenderImage.scaleBlitBuffer and target_w and target_h then
-        local orig_w = cover_bb:getWidth()
-        local orig_h = cover_bb:getHeight()
-        if orig_w > 0 and orig_h > 0 then
-            local scale = math.min(target_w / orig_w, target_h / orig_h)
-            local scaled_w = math.max(1, math.floor(orig_w * scale))
-            local scaled_h = math.max(1, math.floor(orig_h * scale))
-            local ok_scale, scaled_bb = pcall(function()
-                return RenderImage:scaleBlitBuffer(cover_bb, scaled_w, scaled_h, true)
-            end)
-            if ok_scale and scaled_bb then
-                _cover_cache[cache_key] = scaled_bb
-                return scaled_bb
-            end
-        end
-    end
-
-    _cover_cache[cache_key] = cover_bb
-    return cover_bb
-end
-
-local function createCoverWidget(filepath, target_w, target_h, format_label)
-    local bb = M.getBookCoverBlitBuffer(filepath, target_w, target_h)
-    if bb then
-        local iw = ImageWidget:new{
-            image = bb,
-            width = bb:getWidth(),
-            height = bb:getHeight(),
-        }
-        return FrameContainer:new{
-            bordersize = sc(1),
-            color = theme.color_border or Blitbuffer.COLOR_DARK_GRAY,
-            padding = 0,
-            margin = 0,
-            background = Blitbuffer.COLOR_WHITE,
-            width = target_w,
-            height = target_h,
-            CenterContainer:new{
-                dimen = Geom:new{ w = target_w, h = target_h },
-                iw,
-            }
-        }
-    end
-
-    -- Fallback placeholder card
-    local icon_widget
-    local icon_path = getAssetPath("book.svg")
-    local ok_ri, RenderImage = pcall(require, "ui/renderimage")
-    if ok_ri and RenderImage and RenderImage.renderSvg then
-        local ok, icon_bb = pcall(RenderImage.renderSvg, RenderImage, icon_path, sc(28), sc(28))
-        if ok and icon_bb then
-            icon_widget = ImageWidget:new{ image = icon_bb }
-        end
-    end
-    if not icon_widget then
-        icon_widget = TextWidget:new{
-            text = "📖",
-            face = Font:getFace("cfont", 22),
-        }
-    end
-
-    local badge_widget = TextWidget:new{
-        text = format_label or "BOOK",
-        face = Font:getFace("cfont", 10),
-        bold = true,
-        fgcolor = theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY,
-    }
-
-    return FrameContainer:new{
-        bordersize = sc(1),
-        color = theme.color_border or Blitbuffer.COLOR_DARK_GRAY,
-        padding = sc(4),
-        margin = 0,
-        radius = theme.radius_btn or sc(4),
-        background = Blitbuffer.COLOR_LIGHT_GRAY,
-        width = target_w,
-        height = target_h,
-        CenterContainer:new{
-            dimen = Geom:new{ w = target_w, h = target_h },
-            VerticalGroup:new{
-                align = "center",
-                icon_widget,
-                VerticalSpan:new{ width = sc(4) },
-                badge_widget,
-            }
-        }
-    }
-end
-
-local function makeTapItem(frame, callback)
-    local item = InputContainer:new{ frame }
-    item.ges_events = {
-        Tap = {
-            GestureRange:new{
-                ges = "tap",
-                range = function()
-                    return item.dimen
-                end
-            }
-        }
-    }
-    item.onTap = function()
-        if callback then callback() end
-        return true
-    end
-    item.onTapSelect = function()
-        if callback then callback() end
-        return true
-    end
-    return item
+    return nil
 end
 
 function M.show(options)
@@ -526,15 +326,22 @@ function M.show(options)
         end
     end
 
-    local ok_gs, G_reader_settings = pcall(function() return G_reader_settings end)
-    local view_mode = (ok_gs and G_reader_settings and G_reader_settings.readSetting and G_reader_settings:readSetting("xray_book_picker_view")) or "cover"
-    if view_mode ~= "cover" and view_mode ~= "list" then
-        view_mode = "cover"
-    end
-
     local current_page = 1
     local overlay = nil
     local refresh = nil
+
+    -- Non-touch focus navigation state
+    local function isTouchDev()
+        if Device then
+            if Device.isTouchDevice then return Device:isTouchDevice()
+            elseif Device.isTouch then return Device:isTouch() end
+        end
+        return false
+    end
+    local is_touch = isTouchDev()
+    local focus_visible = not is_touch
+    local focus_row = 2
+    local focus_col = 1
 
     local function closePicker()
         if overlay then
@@ -549,6 +356,13 @@ function M.show(options)
     end
 
     local function confirmBook(chosen_path)
+        if options.is_book_in_roster and options.is_book_in_roster(chosen_path) then
+            UIManager:show(InfoMessage:new{
+                text = loc:t("manage_series_already_added") or "This book is already in the series roster.",
+                timeout = 3,
+            })
+            return
+        end
         if overlay then
             local ov = overlay
             overlay = nil
@@ -560,20 +374,8 @@ function M.show(options)
         end
     end
 
-    local function toggleViewMode()
-        if view_mode == "cover" then
-            view_mode = "list"
-        else
-            view_mode = "cover"
-        end
-        if ok_gs and G_reader_settings and G_reader_settings.saveSetting then
-            G_reader_settings:saveSetting("xray_book_picker_view", view_mode)
-        end
-        current_page = 1
-        if refresh then refresh() end
-    end
-
     refresh = function()
+        -- Always close previous overlay before rebuilding (eliminates duplicate/ghost dialogs)
         if overlay then
             local ov = overlay
             overlay = nil
@@ -583,37 +385,40 @@ function M.show(options)
 
         local sw = Device.screen:getWidth()
         local sh = Device.screen:getHeight()
-        local dialog_w = math.min(sw - sc(16), sc(540))
-        local dialog_h = math.min(sh - sc(24), sc(780))
 
-        local card_padding = sc(8)
-        local card_border = theme.border_window or sc(1)
+        -- CONSTANT DIALOG DIMENSIONS (centered, fixed height, no jumping)
+        local card_padding = sc(12)
+        local card_border = theme.border_window or sc(2)
+        local dialog_w = math.min(sw - sc(24), sc(460))
         local inner_w = dialog_w - (card_padding * 2) - (card_border * 2)
+
+        -- VERTICAL SLICES (mathematically exact so dialog height is strictly constant)
+        local header_h = sc(32)
+        local gap_sm = sc(6)
+        local rule_h = sc(1)
+        local path_box_h = sc(40)
+        local up_item_h = sc(34)
+        local footer_btn_h = sc(34)
+
+        local items_per_page = 6
+        local row_h = sc(38)
+        local row_gap = sc(4)
+        local row_stride = row_h + row_gap
+        local content_area_h = (items_per_page * row_h) + ((items_per_page - 1) * row_gap)
+
+        local inner_h = header_h + gap_sm + rule_h + gap_sm + path_box_h + gap_sm + up_item_h + gap_sm + content_area_h + gap_sm + rule_h + gap_sm + footer_btn_h
+        local dialog_h = inner_h + (card_padding * 2) + (card_border * 2)
 
         local subdirs, books = M.scanDirectory(current_path)
         local parent_path = M.getParentPath(current_path)
 
-        -- Combine items for current view
+        -- Combine items for list view
         local all_items = {}
         for _, d in ipairs(subdirs) do
             table.insert(all_items, { type = "dir", data = d })
         end
         for _, b in ipairs(books) do
             table.insert(all_items, { type = "book", data = b })
-        end
-
-        local items_per_page = 6
-        local num_cols = 3
-        if view_mode == "cover" then
-            if inner_w < sc(400) then
-                num_cols = 2
-                items_per_page = 4
-            else
-                num_cols = 3
-                items_per_page = 6
-            end
-        else
-            items_per_page = 7
         end
 
         local total_items = #all_items
@@ -623,52 +428,60 @@ function M.show(options)
 
         local start_idx = (current_page - 1) * items_per_page + 1
         local end_idx = math.min(total_items, current_page * items_per_page)
+        local items_on_page = (total_items > 0) and (end_idx - start_idx + 1) or 0
 
-        -- HEADER
-        local title_text = loc:t("manage_series_choose_book") or "Choose Book to Add"
-        local title_label = TextWidget:new{
-            text = title_text,
-            face = Font:getFace("cfont", 18),
-            bold = true,
-            fgcolor = Blitbuffer.COLOR_BLACK,
-        }
+        -- 2D Focus grid for keyboard/D-pad navigation
+        local focus_grid = {}
+        local function addFocusRow(row_items)
+            table.insert(focus_grid, row_items)
+            return #focus_grid
+        end
 
-        local toggle_label_text = (view_mode == "cover") and (loc:t("picker_list_view") or "List") or (loc:t("picker_cover_view") or "Covers")
-        local toggle_btn = Button:new{
-            text = toggle_label_text,
-            bordersize = sc(1),
-            padding = sc(3),
-            padding_h = sc(8),
-            radius = theme.radius_btn or sc(4),
-            callback = toggleViewMode,
-        }
+        -- HEADER (Title + Close button with Feather x.svg)
+        local close_btn_w = sc(32)
+        local r_header = addFocusRow({
+            { callback = closePicker },
+        })
+        local is_focused_close = focus_visible and (focus_row == r_header and focus_col == 1)
 
-        local close_btn = Button:new{
-            text = " ✕ ",
-            face = Font:getFace("cfont", 16),
-            bordersize = 0,
-            padding = sc(4),
-            padding_h = sc(6),
+        local close_btn = createCustomBtn{
+            icon = "x.svg",
+            icon_size = sc(16),
+            is_focused = is_focused_close,
+            width = close_btn_w,
+            height = header_h,
+            bordersize = is_focused_close and sc(3) or 0,
+            border_color = is_focused_close and Blitbuffer.COLOR_BLACK or nil,
+            background = is_focused_close and (theme.color_focus_bg or Blitbuffer.Color8(215)) or nil,
             callback = closePicker,
         }
 
+        local title_text = loc:t("manage_series_choose_book") or "Choose Book to Add"
+        local title_avail_w = inner_w - close_btn_w - sc(16)
+        local title_truncated = truncateToWidth(title_text, title_avail_w, Font:getFace("cfont", 17), true)
+        local title_label = TextWidget:new{
+            text = title_truncated,
+            face = Font:getFace("cfont", 17),
+            bold = true,
+            fgcolor = Blitbuffer.COLOR_BLACK,
+        }
+        local title_measured_w = getTextWidth(title_truncated, Font:getFace("cfont", 17), true)
+        local header_span_w = math.max(sc(6), inner_w - title_measured_w - close_btn_w)
+
         local header_row = HorizontalGroup:new{
+            align = "center",
             title_label,
-            HorizontalSpan:new{ width = math.max(sc(8), inner_w - (title_label:getSize().w) - (toggle_btn:getSize().w) - (close_btn:getSize().w) - sc(12)) },
-            toggle_btn,
-            HorizontalSpan:new{ width = sc(6) },
+            HorizontalSpan:new{ width = header_span_w },
             close_btn,
         }
 
         -- PATH & SUMMARY BAR
-        local path_label = TextBoxWidget:new{
-            text = current_path,
+        local path_label = TextWidget:new{
+            text = truncateToWidth(current_path, inner_w - sc(20), Font:getFace("cfont", 13), true),
             face = Font:getFace("cfont", 13),
             bold = true,
             fgcolor = Blitbuffer.COLOR_BLACK,
-            width = inner_w - sc(16),
         }
-
         local count_text = string.format(loc:t("picker_items_count") or "%d folders, %d books", #subdirs, #books)
         local count_label = TextWidget:new{
             text = count_text,
@@ -677,42 +490,59 @@ function M.show(options)
         }
 
         local path_box = FrameContainer:new{
-            padding = sc(4),
-            padding_left = sc(8),
-            padding_right = sc(8),
+            padding = 0,
             radius = theme.radius_btn or sc(4),
             bordersize = 0,
             width = inner_w,
+            height = path_box_h,
             background = Blitbuffer.COLOR_LIGHT_GRAY,
-            VerticalGroup:new{
-                align = "left",
-                path_label,
-                count_label,
-            }
+            CenterContainer:new{
+                dimen = Geom:new{ w = inner_w, h = path_box_h },
+                HorizontalGroup:new{
+                    align = "center",
+                    HorizontalSpan:new{ width = sc(10) },
+                    VerticalGroup:new{
+                        align = "left",
+                        path_label,
+                        VerticalSpan:new{ width = sc(2) },
+                        count_label,
+                    },
+                },
+            },
         }
 
-        -- PARENT DIRECTORY BUTTON
-        local up_item = nil
-        if parent_path then
-            local parent_display = parent_path:match("([^/\\]+)$") or "/"
-            up_item = Button:new{
-                text = string.format("⬆  ..  (%s)", parent_display),
-                text_font_bold = true,
-                bordersize = sc(1),
-                border_color = theme.color_section_rule or Blitbuffer.COLOR_GRAY_B,
-                width = inner_w,
-                height = sc(34),
-                radius = theme.radius_btn or sc(4),
-                padding = 0,
-                callback = function()
-                    current_path = parent_path
-                    current_page = 1
-                    refresh()
-                end,
-            }
+        -- PARENT DIRECTORY BUTTON (arrow-up.svg Feather icon)
+        local cb_up = function()
+            if parent_path then
+                current_path = parent_path
+                current_page = 1
+                refresh()
+            end
         end
 
-        -- CONTENT ITEMS (List or Cover View)
+        local r_up = nil
+        if parent_path then
+            r_up = addFocusRow({ { callback = cb_up } })
+        end
+        local is_focused_up = focus_visible and r_up and (focus_row == r_up and focus_col == 1)
+        local parent_display = parent_path and (parent_path:match("([^/\\]+)$") or "/") or nil
+
+        local up_item = createCustomBtn{
+            icon = "arrow-up.svg",
+            icon_size = sc(16),
+            text = parent_display and string.format("..  (%s)", parent_display) or "..  (root)",
+            text_size = 13,
+            bold = true,
+            enabled = (parent_path ~= nil),
+            is_focused = is_focused_up,
+            width = inner_w,
+            height = up_item_h,
+            bordersize = is_focused_up and sc(3) or sc(1),
+            border_color = is_focused_up and Blitbuffer.COLOR_BLACK or (theme.color_section_rule or Blitbuffer.COLOR_GRAY_B),
+            callback = cb_up,
+        }
+
+        -- CONTENT ITEMS (List View)
         local content_list = VerticalGroup:new{ align = "left" }
 
         if total_items == 0 then
@@ -722,297 +552,453 @@ function M.show(options)
                 fgcolor = theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY,
             }
             table.insert(content_list, CenterContainer:new{
-                dimen = Geom:new{ w = inner_w, h = sc(160) },
+                dimen = Geom:new{ w = inner_w, h = content_area_h },
                 empty_label,
             })
-        elseif view_mode == "cover" then
-            -- GRID / COVER VIEW
-            local col_gap = sc(8)
-            local row_gap = sc(8)
-            local card_w = math.floor((inner_w - (col_gap * (num_cols - 1))) / num_cols)
-            local cover_h = math.floor(card_w * 1.35)
-
-            local current_row = nil
-            local col_in_row = 0
-
+        else
             for i = start_idx, end_idx do
                 local it = all_items[i]
-                local card_content
-
-                if it.type == "dir" then
-                    -- Folder card with clean [FOLDER] badge and folder name
-                    local folder_badge = TextWidget:new{
-                        text = "[FOLDER]",
-                        face = Font:getFace("cfont", 12),
-                        bold = true,
-                        fgcolor = theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY,
-                    }
-                    local folder_name_text = truncateToWidth(it.data.name or "", card_w - sc(12), Font:getFace("cfont", 13), true)
-                    local folder_name = TextWidget:new{
-                        text = folder_name_text,
-                        face = Font:getFace("cfont", 13),
-                        bold = true,
-                        fgcolor = Blitbuffer.COLOR_BLACK,
-                    }
-                    local dir_box = FrameContainer:new{
-                        bordersize = sc(1),
-                        color = theme.color_border or Blitbuffer.COLOR_DARK_GRAY,
-                        padding = sc(6),
-                        radius = theme.radius_btn or sc(4),
-                        background = Blitbuffer.COLOR_LIGHT_GRAY,
-                        width = card_w,
-                        height = cover_h,
-                        CenterContainer:new{
-                            dimen = Geom:new{ w = card_w, h = cover_h },
-                            VerticalGroup:new{
-                                align = "center",
-                                folder_badge,
-                                VerticalSpan:new{ width = sc(8) },
-                                folder_name,
-                            }
-                        }
-                    }
-                    card_content = dir_box
-                else
-                    -- Book card with cover thumbnail
-                    local cover_w = createCoverWidget(it.data.path, card_w, cover_h, it.data.ext)
-                    local clean_title = (it.data.name or ""):gsub("%.[^%.]+$", "")
-                    local title_str = formatTwoLinesMax(clean_title, card_w, Font:getFace("cfont", 11), false)
-                    local title_widget = TextWidget:new{
-                        text = title_str,
-                        face = Font:getFace("cfont", 11),
-                        fgcolor = Blitbuffer.COLOR_BLACK,
-                    }
-                    card_content = VerticalGroup:new{
-                        align = "center",
-                        cover_w,
-                        VerticalSpan:new{ width = sc(3) },
-                        title_widget,
-                    }
-                end
-
                 local target_path = it.data.path
                 local is_dir = (it.type == "dir")
-                local tap_card = makeTapItem(card_content, function()
+                local is_already_added = not is_dir and options.is_book_in_roster and options.is_book_in_roster(target_path)
+
+                local onSelect = function()
                     if is_dir then
                         current_path = target_path
                         current_page = 1
                         refresh()
+                    elseif is_already_added then
+                        UIManager:show(InfoMessage:new{
+                            text = loc:t("manage_series_already_added") or "This book is already in the series roster.",
+                            timeout = 3,
+                        })
                     else
                         confirmBook(target_path)
                     end
-                end)
-
-                if col_in_row == 0 then
-                    current_row = HorizontalGroup:new{}
-                else
-                    table.insert(current_row, HorizontalSpan:new{ width = col_gap })
                 end
-                table.insert(current_row, tap_card)
-                col_in_row = col_in_row + 1
 
-                if col_in_row == num_cols or i == end_idx then
-                    while col_in_row < num_cols do
-                        table.insert(current_row, HorizontalSpan:new{ width = col_gap })
-                        table.insert(current_row, HorizontalSpan:new{ width = card_w })
-                        col_in_row = col_in_row + 1
+                local r_item = addFocusRow({ { callback = onSelect } })
+                local is_row_focused = focus_visible and (focus_row == r_item and focus_col == 1)
+
+                local row_content_hg
+                if is_dir then
+                    local icon_widget = ImageWidget:new{
+                        file = getAssetPath("folder.svg"),
+                        width = sc(18),
+                        height = sc(18),
+                        scale_factor = 0,
+                        is_icon = true,
+                        alpha = true,
+                    }
+                    local arrow_widget = ImageWidget:new{
+                        file = getAssetPath("chevron-right.svg"),
+                        width = sc(16),
+                        height = sc(16),
+                        scale_factor = 0,
+                        is_icon = true,
+                        alpha = true,
+                    }
+                    local max_name_w = inner_w - sc(80)
+                    local dir_name = TextWidget:new{
+                        text = truncateToWidth(it.data.name or "", max_name_w, Font:getFace("cfont", 14), true),
+                        face = Font:getFace("cfont", 14),
+                        bold = true,
+                        fgcolor = Blitbuffer.COLOR_BLACK,
+                    }
+                    local name_w = dir_name:getSize().w
+                    local flex_w = math.max(sc(8), inner_w - sc(18) - sc(10) - name_w - sc(16) - sc(30))
+                    row_content_hg = HorizontalGroup:new{
+                        align = "center",
+                        HorizontalSpan:new{ width = sc(10) },
+                        icon_widget,
+                        HorizontalSpan:new{ width = sc(10) },
+                        dir_name,
+                        HorizontalSpan:new{ width = flex_w },
+                        arrow_widget,
+                        HorizontalSpan:new{ width = sc(10) },
+                    }
+                else
+                    local icon_widget = ImageWidget:new{
+                        file = getAssetPath("book.svg"),
+                        width = sc(18),
+                        height = sc(18),
+                        scale_factor = 0,
+                        is_icon = true,
+                        alpha = true,
+                    }
+                    local clean_title = (it.data.name or ""):gsub("%.[^%.]+$", "")
+
+                    local right_group = HorizontalGroup:new{ align = "center" }
+                    if is_already_added then
+                        local check_icon = ImageWidget:new{
+                            file = getAssetPath("check.svg"),
+                            width = sc(14),
+                            height = sc(14),
+                            scale_factor = 0,
+                            is_icon = true,
+                            alpha = true,
+                        }
+                        local added_lbl = TextWidget:new{
+                            text = "[ADDED]",
+                            face = Font:getFace("cfont", 11),
+                            bold = true,
+                            fgcolor = theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY,
+                        }
+                        table.insert(right_group, check_icon)
+                        table.insert(right_group, HorizontalSpan:new{ width = sc(4) })
+                        table.insert(right_group, added_lbl)
+                    else
+                        local ext_tag = TextWidget:new{
+                            text = string.format("[%s]", it.data.ext or "BOOK"),
+                            face = Font:getFace("cfont", 11),
+                            bold = true,
+                            fgcolor = theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY,
+                        }
+                        local size_tag = TextWidget:new{
+                            text = formatSize(it.data.size),
+                            face = Font:getFace("cfont", 11),
+                            fgcolor = theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY,
+                        }
+                        table.insert(right_group, ext_tag)
+                        table.insert(right_group, HorizontalSpan:new{ width = sc(6) })
+                        table.insert(right_group, size_tag)
                     end
-                    table.insert(content_list, current_row)
+
+                    local right_w = right_group:getSize().w
+                    local max_title_w = math.max(sc(100), inner_w - sc(18) - sc(10) - right_w - sc(36))
+                    local book_title = TextWidget:new{
+                        text = truncateToWidth(clean_title, max_title_w, Font:getFace("cfont", 14), false),
+                        face = Font:getFace("cfont", 14),
+                        fgcolor = is_already_added and (theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY) or Blitbuffer.COLOR_BLACK,
+                    }
+                    local title_w = book_title:getSize().w
+                    local flex_w = math.max(sc(8), inner_w - sc(18) - sc(10) - title_w - right_w - sc(30))
+
+                    row_content_hg = HorizontalGroup:new{
+                        align = "center",
+                        HorizontalSpan:new{ width = sc(10) },
+                        icon_widget,
+                        HorizontalSpan:new{ width = sc(10) },
+                        book_title,
+                        HorizontalSpan:new{ width = flex_w },
+                        right_group,
+                        HorizontalSpan:new{ width = sc(10) },
+                    }
+                end
+
+                local border_sz = is_row_focused and sc(3) or sc(1)
+                local border_col = is_row_focused and Blitbuffer.COLOR_BLACK or (theme.color_section_rule or Blitbuffer.COLOR_GRAY_B)
+                local bg_col = is_row_focused and (theme.color_focus_bg or Blitbuffer.Color8(215)) or (is_already_added and Blitbuffer.Color8(245) or Blitbuffer.COLOR_WHITE)
+
+                local row_frame = FrameContainer:new{
+                    bordersize = border_sz,
+                    color = border_col,
+                    padding = 0,
+                    radius = theme.radius_btn or sc(4),
+                    background = bg_col,
+                    width = inner_w,
+                    height = row_h,
+                    CenterContainer:new{
+                        dimen = Geom:new{ w = inner_w, h = row_h },
+                        row_content_hg,
+                    }
+                }
+
+                local tap_row = makeTapItem(row_frame, onSelect, inner_w, row_h)
+                table.insert(content_list, tap_row)
+                if i < end_idx then
                     table.insert(content_list, VerticalSpan:new{ width = row_gap })
-                    col_in_row = 0
                 end
             end
-        else
-            -- LIST VIEW
-            local row_h = sc(42)
-            for i = start_idx, end_idx do
-                local it = all_items[i]
-                local row_content
 
-                if it.type == "dir" then
-                    local dir_tag = TextWidget:new{
-                        text = "[DIR]",
-                        face = Font:getFace("cfont", 11),
-                        bold = true,
-                        fgcolor = theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY,
-                    }
-                    local dir_name = TextWidget:new{
-                        text = truncateToWidth(it.data.name or "", inner_w - sc(70), Font:getFace("cfont", 14), true),
-                        face = Font:getFace("cfont", 14),
-                        bold = true,
-                        fgcolor = Blitbuffer.COLOR_BLACK,
-                    }
-                    local hg = HorizontalGroup:new{
-                        dir_tag,
-                        HorizontalSpan:new{ width = sc(8) },
-                        dir_name,
-                    }
-                    row_content = FrameContainer:new{
-                        bordersize = sc(1),
-                        color = theme.color_section_rule or Blitbuffer.COLOR_GRAY_B,
-                        padding = sc(6),
-                        padding_left = sc(8),
-                        padding_right = sc(8),
-                        radius = theme.radius_btn or sc(4),
-                        width = inner_w,
-                        hg,
-                    }
-                else
-                    local ext_tag = TextWidget:new{
-                        text = string.format("[%s]", it.data.ext or "BOOK"),
-                        face = Font:getFace("cfont", 11),
-                        bold = true,
-                        fgcolor = theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY,
-                    }
-                    local clean_title = (it.data.name or ""):gsub("%.[^%.]+$", "")
-                    local size_tag = TextWidget:new{
-                        text = formatSize(it.data.size),
-                        face = Font:getFace("cfont", 11),
-                        fgcolor = theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY,
-                    }
-                    local avail_title_w = math.max(sc(100), inner_w - ext_tag:getSize().w - size_tag:getSize().w - sc(32))
-                    local book_title = TextWidget:new{
-                        text = truncateToWidth(clean_title, avail_title_w, Font:getFace("cfont", 14), false),
-                        face = Font:getFace("cfont", 14),
-                        fgcolor = Blitbuffer.COLOR_BLACK,
-                    }
-                    local hg = HorizontalGroup:new{
-                        ext_tag,
-                        HorizontalSpan:new{ width = sc(8) },
-                        book_title,
-                        HorizontalSpan:new{ width = math.max(sc(8), inner_w - ext_tag:getSize().w - book_title:getSize().w - size_tag:getSize().w - sc(24)) },
-                        size_tag,
-                    }
-                    row_content = FrameContainer:new{
-                        bordersize = sc(1),
-                        color = theme.color_border or Blitbuffer.COLOR_DARK_GRAY,
-                        padding = sc(6),
-                        padding_left = sc(8),
-                        padding_right = sc(8),
-                        radius = theme.radius_btn or sc(4),
-                        width = inner_w,
-                        hg,
-                    }
-                end
-
-                local target_path = it.data.path
-                local is_dir = (it.type == "dir")
-                local tap_row = makeTapItem(row_content, function()
-                    if is_dir then
-                        current_path = target_path
-                        current_page = 1
-                        refresh()
-                    else
-                        confirmBook(target_path)
-                    end
-                end)
-
-                table.insert(content_list, tap_row)
-                table.insert(content_list, VerticalSpan:new{ width = sc(4) })
+            -- Pad remaining height so content_list ALWAYS occupies content_area_h exactly
+            local used_h = (items_on_page * row_h) + math.max(0, items_on_page - 1) * row_gap
+            local remaining_h = content_area_h - used_h
+            if remaining_h > 0 then
+                table.insert(content_list, VerticalSpan:new{ width = remaining_h })
             end
         end
 
-        -- FOOTER PAGINATION
-        local prev_btn = Button:new{
-            text = " < Prev ",
+        -- FOOTER PAGINATION & ACTIONS (Feather chevron-left.svg, chevron-right.svg, x.svg)
+        local cb_prev = function()
+            if current_page > 1 then
+                current_page = current_page - 1
+                refresh()
+            end
+        end
+        local cb_next = function()
+            if current_page < total_pages then
+                current_page = current_page + 1
+                refresh()
+            end
+        end
+        local cb_cancel = function()
+            closePicker()
+        end
+
+        local r_footer = addFocusRow({
+            { callback = cb_prev },
+            { callback = cb_next },
+            { callback = cb_cancel },
+        })
+
+        local is_focused_prev   = focus_visible and (focus_row == r_footer and focus_col == 1)
+        local is_focused_next   = focus_visible and (focus_row == r_footer and focus_col == 2)
+        local is_focused_cancel = focus_visible and (focus_row == r_footer and focus_col == 3)
+
+        local prev_btn_w = sc(80)
+        local next_btn_w = sc(80)
+        local page_container_w = sc(64)
+        local cancel_btn_w = sc(84)
+
+        local prev_btn = createCustomBtn{
+            icon = "chevron-left.svg",
+            icon_size = sc(14),
+            text = "Prev",
+            text_size = 13,
+            bold = true,
             enabled = (current_page > 1),
-            bordersize = sc(1),
-            radius = theme.radius_btn or sc(4),
-            callback = function()
-                if current_page > 1 then
-                    current_page = current_page - 1
-                    refresh()
-                end
-            end,
+            is_focused = is_focused_prev,
+            width = prev_btn_w,
+            height = footer_btn_h,
+            bordersize = is_focused_prev and sc(3) or sc(1),
+            border_color = is_focused_prev and Blitbuffer.COLOR_BLACK or (theme.color_section_rule or Blitbuffer.COLOR_GRAY_B),
+            callback = cb_prev,
         }
+
+        local next_btn = createCustomBtn{
+            text = "Next",
+            icon = "chevron-right.svg",
+            icon_size = sc(14),
+            text_size = 13,
+            bold = true,
+            enabled = (current_page < total_pages),
+            is_focused = is_focused_next,
+            width = next_btn_w,
+            height = footer_btn_h,
+            bordersize = is_focused_next and sc(3) or sc(1),
+            border_color = is_focused_next and Blitbuffer.COLOR_BLACK or (theme.color_section_rule or Blitbuffer.COLOR_GRAY_B),
+            callback = cb_next,
+        }
+
         local page_str = string.format("%d / %d", current_page, total_pages)
         local page_label = TextWidget:new{
             text = page_str,
-            face = Font:getFace("cfont", 14),
+            face = Font:getFace("cfont", 12),
             bold = true,
-            fgcolor = Blitbuffer.COLOR_BLACK,
+            fgcolor = theme.color_label_dim or Blitbuffer.COLOR_DARK_GRAY,
         }
-        local next_btn = Button:new{
-            text = " Next > ",
-            enabled = (current_page < total_pages),
-            bordersize = sc(1),
-            radius = theme.radius_btn or sc(4),
-            callback = function()
-                if current_page < total_pages then
-                    current_page = current_page + 1
-                    refresh()
-                end
-            end,
-        }
-        local cancel_btn = Button:new{
-            text = loc:t("cancel") or "Cancel",
-            bordersize = sc(1),
-            radius = theme.radius_btn or sc(4),
-            callback = closePicker,
+        local page_container = CenterContainer:new{
+            dimen = Geom:new{ w = page_container_w, h = footer_btn_h },
+            page_label,
         }
 
+        local cancel_btn = createCustomBtn{
+            icon = "x.svg",
+            icon_size = sc(14),
+            text = loc:t("cancel") or "Cancel",
+            text_size = 13,
+            bold = true,
+            is_focused = is_focused_cancel,
+            width = cancel_btn_w,
+            height = footer_btn_h,
+            bordersize = is_focused_cancel and sc(3) or sc(1),
+            border_color = is_focused_cancel and Blitbuffer.COLOR_BLACK or (theme.color_section_rule or Blitbuffer.COLOR_GRAY_B),
+            callback = cb_cancel,
+        }
+
+        local footer_span_w = math.max(sc(8), inner_w - prev_btn_w - page_container_w - next_btn_w - cancel_btn_w - sc(16))
         local footer_row = HorizontalGroup:new{
+            align = "center",
             prev_btn,
-            HorizontalSpan:new{ width = sc(8) },
-            page_label,
-            HorizontalSpan:new{ width = sc(8) },
+            HorizontalSpan:new{ width = sc(6) },
+            page_container,
+            HorizontalSpan:new{ width = sc(6) },
             next_btn,
-            HorizontalSpan:new{ width = math.max(sc(16), inner_w - (prev_btn:getSize().w) - (page_label:getSize().w) - (next_btn:getSize().w) - (cancel_btn:getSize().w) - sc(24)) },
+            HorizontalSpan:new{ width = footer_span_w },
             cancel_btn,
         }
 
-        -- ASSEMBLE DIALOG
+        -- ASSEMBLE DIALOG (Exact height match, perfectly centered)
         local main_vg = VerticalGroup:new{
             align = "left",
             header_row,
-            VerticalSpan:new{ width = sc(6) },
+            VerticalSpan:new{ width = gap_sm },
             LineWidget:new{
-                dimen = Geom:new{ w = inner_w, h = sc(1) },
+                dimen = Geom:new{ w = inner_w, h = rule_h },
                 background = theme.color_section_rule or Blitbuffer.COLOR_GRAY_B,
             },
-            VerticalSpan:new{ width = sc(6) },
+            VerticalSpan:new{ width = gap_sm },
             path_box,
-            VerticalSpan:new{ width = sc(4) },
+            VerticalSpan:new{ width = gap_sm },
+            up_item,
+            VerticalSpan:new{ width = gap_sm },
+            content_list,
+            VerticalSpan:new{ width = gap_sm },
+            LineWidget:new{
+                dimen = Geom:new{ w = inner_w, h = rule_h },
+                background = theme.color_section_rule or Blitbuffer.COLOR_GRAY_B,
+            },
+            VerticalSpan:new{ width = gap_sm },
+            footer_row,
         }
 
-        if up_item then
-            table.insert(main_vg, up_item)
-            table.insert(main_vg, VerticalSpan:new{ width = sc(6) })
-        end
-
-        table.insert(main_vg, content_list)
-        table.insert(main_vg, VerticalSpan:new{ width = sc(8) })
-        table.insert(main_vg, LineWidget:new{
-            dimen = Geom:new{ w = inner_w, h = sc(1) },
-            background = theme.color_section_rule or Blitbuffer.COLOR_GRAY_B,
-        })
-        table.insert(main_vg, VerticalSpan:new{ width = sc(6) })
-        table.insert(main_vg, footer_row)
-
-        local dialog_frame = FrameContainer:new{
+        local card = FrameContainer:new{
             bordersize = card_border,
             color = theme.color_border or Blitbuffer.COLOR_BLACK,
-            radius = theme.radius_window or 0,
-            background = Blitbuffer.COLOR_WHITE,
+            radius = theme.radius_window or sc(4),
+            background = theme.color_bg or Blitbuffer.COLOR_WHITE,
             padding = card_padding,
+            width = dialog_w,
+            height = dialog_h,
             main_vg,
         }
 
+        -- Clamp focus indices to valid ranges in newly constructed grid
+        if focus_row > #focus_grid then focus_row = #focus_grid end
+        if focus_row < 1 then focus_row = 1 end
+        local max_c = (focus_grid[focus_row] and #focus_grid[focus_row]) or 1
+        if focus_col > max_c then focus_col = max_c end
+        if focus_col < 1 then focus_col = 1 end
+
+        local key_events = {
+            Close      = { { "Back" }, { "Escape" }, { "q" }, { "Q" } },
+            FocusUp    = { { "Up" } },
+            FocusDown  = { { "Down" } },
+            FocusLeft  = { { "Left" } },
+            FocusRight = { { "Right" } },
+            Select     = { { "Return" }, { "KP_Enter" }, { "Select" }, { "Press" }, { "Space" } },
+            PrevPage   = { { "PageUp" }, { "PgUp" }, { "Prev" }, { "LPgBack" }, { "RPgBack" } },
+            NextPage   = { { "PageDown" }, { "PgDn" }, { "Next" }, { "LPgFwd" }, { "RPgFwd" } },
+        }
+        local Device_input = Device and Device.input
+        if Device_input and Device_input.group then
+            if Device_input.group.PgFwd  then table.insert(key_events.NextPage,  { Device_input.group.PgFwd  }) end
+            if Device_input.group.PgBack then table.insert(key_events.PrevPage,  { Device_input.group.PgBack }) end
+            if Device_input.group.Back   then table.insert(key_events.Close,     { Device_input.group.Back   }) end
+            if Device_input.group.Up     then table.insert(key_events.FocusUp,   { Device_input.group.Up     }) end
+            if Device_input.group.Down   then table.insert(key_events.FocusDown, { Device_input.group.Down   }) end
+            if Device_input.group.Left   then table.insert(key_events.FocusLeft, { Device_input.group.Left   }) end
+            if Device_input.group.Right  then table.insert(key_events.FocusRight,{ Device_input.group.Right  }) end
+            if Device_input.group.Enter  then table.insert(key_events.Select,    { Device_input.group.Enter  }) end
+            if Device_input.group.Press  then table.insert(key_events.Select,    { Device_input.group.Press  }) end
+        end
+
         overlay = InputContainer:new{
-            align = "center",
-            vertical_align = "center",
             dimen = Geom:new{ w = sw, h = sh },
+            key_events = key_events,
+            ges_events = {
+                Swipe = {
+                    GestureRange:new{
+                        ges = "swipe",
+                        range = function() return Geom:new{ w = sw, h = sh } end,
+                    }
+                }
+            },
             CenterContainer:new{
                 dimen = Geom:new{ w = sw, h = sh },
-                dialog_frame,
-            }
+                card,
+            },
         }
 
         overlay.onClose = function()
-            if on_cancel then on_cancel() end
+            closePicker()
+            return true
+        end
+        overlay.onNextPage = function()
+            if current_page < total_pages then
+                current_page = current_page + 1
+                refresh()
+                return true
+            end
+        end
+        overlay.onPrevPage = function()
+            if current_page > 1 then
+                current_page = current_page - 1
+                refresh()
+                return true
+            end
+        end
+        overlay.onSwipe = function(self, arg, ges)
+            if ges and (ges.direction == "west" or ges.direction == "south") then
+                if current_page < total_pages then
+                    current_page = current_page + 1
+                    refresh()
+                    return true
+                end
+            elseif ges and (ges.direction == "east" or ges.direction == "north") then
+                if current_page > 1 then
+                    current_page = current_page - 1
+                    refresh()
+                    return true
+                end
+            end
+        end
+        overlay.onFocusUp = function()
+            focus_visible = true
+            if focus_row > 1 then
+                focus_row = focus_row - 1
+            else
+                focus_row = #focus_grid
+            end
+            local mc = (focus_grid[focus_row] and #focus_grid[focus_row]) or 1
+            if focus_col > mc then focus_col = mc end
+            refresh()
+            return true
+        end
+        overlay.onFocusDown = function()
+            focus_visible = true
+            if focus_row < #focus_grid then
+                focus_row = focus_row + 1
+            else
+                focus_row = 1
+            end
+            local mc = (focus_grid[focus_row] and #focus_grid[focus_row]) or 1
+            if focus_col > mc then focus_col = mc end
+            refresh()
+            return true
+        end
+        overlay.onFocusLeft = function()
+            focus_visible = true
+            if focus_col > 1 then
+                focus_col = focus_col - 1
+            else
+                if current_page > 1 then
+                    current_page = current_page - 1
+                    refresh()
+                    return true
+                end
+                focus_col = (focus_grid[focus_row] and #focus_grid[focus_row]) or 1
+            end
+            refresh()
+            return true
+        end
+        overlay.onFocusRight = function()
+            focus_visible = true
+            local mc = (focus_grid[focus_row] and #focus_grid[focus_row]) or 1
+            if focus_col < mc then
+                focus_col = focus_col + 1
+            else
+                if current_page < total_pages then
+                    current_page = current_page + 1
+                    focus_col = 1
+                    refresh()
+                    return true
+                end
+                focus_col = 1
+            end
+            refresh()
+            return true
+        end
+        overlay.onSelect = function()
+            local item = focus_grid[focus_row] and focus_grid[focus_row][focus_col]
+            if item and item.callback then
+                item.callback()
+            end
+            return true
         end
 
-        UIManager:show(overlay)
+        UIManager:show(overlay, "ui")
     end
 
     refresh()

@@ -47,6 +47,50 @@ local TextBoxWidget   = require("ui/widget/textboxwidget")
 local LineWidget      = require("ui/widget/linewidget")
 local Button          = require("ui/widget/button")
 local Size            = require("ui/size")
+local CenterContainer = require("ui/widget/container/centercontainer")
+local ImageWidget     = require("ui/widget/imagewidget")
+
+local _asset_path_cache = {}
+local function getAssetPath(filename)
+    if _asset_path_cache[filename] then
+        return _asset_path_cache[filename]
+    end
+    local info = debug.getinfo(1, "S")
+    local file_dir = (info and info.source and info.source:match("^@?(.*[/\\])")) or ""
+    local candidates = {
+        file_dir .. "assets/" .. filename,
+        file_dir .. "../assets/" .. filename,
+        "plugins/xray.koplugin/assets/" .. filename,
+        "./plugins/xray.koplugin/assets/" .. filename,
+    }
+    for _, path in ipairs(candidates) do
+        local f = io.open(path, "r")
+        if f then
+            f:close()
+            _asset_path_cache[filename] = path
+            return path
+        end
+    end
+    local fallback = "plugins/xray.koplugin/assets/" .. filename
+    _asset_path_cache[filename] = fallback
+    return fallback
+end
+
+local function makeMenuIcon(icon_file, icon_sz, container_w)
+    local sz = icon_sz or (Screen.scaleBySize and Screen:scaleBySize(18) or 18)
+    local w = container_w or (Screen.scaleBySize and Screen:scaleBySize(28) or 28)
+    return CenterContainer:new{
+        dimen = Geom:new{ w = w, h = Screen.scaleBySize and Screen:scaleBySize(36) or 36 },
+        ImageWidget:new{
+            file = getAssetPath(icon_file),
+            width = sz,
+            height = sz,
+            scale_factor = 0,
+            is_icon = true,
+            alpha = true,
+        }
+    }
+end
 
 local DEFAULT_POPUP_FONT_SIZE = 22
 
@@ -6520,11 +6564,13 @@ function M:showManageSeriesDialog()
             is_custom = true,
         })
 
+        local state_w = Screen.scaleBySize and Screen:scaleBySize(28) or 28
         local item_table = {}
         for _, opt in ipairs(options) do
             local o = opt
             table.insert(item_table, {
-                text = (o.checked and "✔ " or "   ") .. o.text,
+                state = o.checked and makeMenuIcon("check.svg") or nil,
+                text = o.text,
                 keep_menu_open = false,
                 callback = function()
                     if o.is_custom then
@@ -6562,6 +6608,7 @@ function M:showManageSeriesDialog()
         active_picker_menu = self:newMenu("series_index_picker", {
             title = self.loc:t("manage_series_pick_index") or "Select Volume #",
             item_table = item_table,
+            state_w = state_w,
             is_borderless = true,
             width = Screen:getWidth(),
             height = Screen:getHeight(),
@@ -6575,9 +6622,11 @@ function M:showManageSeriesDialog()
     local function editBookEntry(book_item, on_done)
         closeEditMenu()
 
+        local state_w = Screen.scaleBySize and Screen:scaleBySize(28) or 28
         local edit_items = {
             {
-                text = string.format("✎  %s: %s", self.loc:t("manage_series_volume_label") or "Volume #", tostring(book_item.index or 1)),
+                state = makeMenuIcon("edit.svg"),
+                text = string.format("%s: %s", self.loc:t("manage_series_volume_label") or "Volume #", tostring(book_item.index or 1)),
                 keep_menu_open = false,
                 callback = function()
                     closeEditMenu()
@@ -6589,7 +6638,8 @@ function M:showManageSeriesDialog()
                 end,
             },
             {
-                text = string.format("✎  %s: %s", self.loc:t("manage_series_title_label") or "Title", tostring(book_item.title or "")),
+                state = makeMenuIcon("edit.svg"),
+                text = string.format("%s: %s", self.loc:t("manage_series_title_label") or "Title", tostring(book_item.title or "")),
                 keep_menu_open = false,
                 callback = function()
                     local InputDialog = require("ui/widget/inputdialog")
@@ -6622,6 +6672,7 @@ function M:showManageSeriesDialog()
         active_edit_menu = self:newMenu("series_book_edit", {
             title = book_item.title or "Edit Book",
             item_table = edit_items,
+            state_w = state_w,
             is_borderless = true,
             width = Screen:getWidth(),
             height = Screen:getHeight(),
@@ -6659,16 +6710,48 @@ function M:showManageSeriesDialog()
             end
         end
 
+        local function normStr(s)
+            if not s then return "" end
+            return s:lower():gsub("[%s%-_%.,%:%'\"%(%)%[%]]+", " "):match("^%s*(.-)%s*$") or ""
+        end
+        local function normPath(p)
+            if not p then return "" end
+            return p:gsub("\\", "/"):gsub("/+", "/"):lower():match("^%s*(.-)%s*$") or ""
+        end
+
+        local function isBookInRoster(check_path)
+            if not check_path or check_path == "" then return false end
+            local n_path = normPath(check_path)
+            local fn = check_path:match("([^/\\]+)$"):gsub("%.[^%.]+$", "")
+            local n_fn = normStr(fn)
+            local meta = self.series_manager and self.series_manager.readBookMetadata and self.series_manager:readBookMetadata(check_path)
+            local n_title = normStr(meta and meta.title or fn)
+
+            for _, b in ipairs(books_roster) do
+                local bp = normPath(b.path)
+                local bt = normStr(b.title)
+                if bp ~= "" and bp == n_path then
+                    return true, b
+                elseif bt ~= "" and (bt == n_title or bt == n_fn) then
+                    return true, b
+                elseif bt ~= "" and n_title ~= "" and (#bt >= 6 and #n_title >= 6) and (bt:find(n_title, 1, true) or n_title:find(bt, 1, true)) then
+                    return true, b
+                elseif bt ~= "" and n_fn ~= "" and (#bt >= 6 and #n_fn >= 6) and (bt:find(n_fn, 1, true) or n_fn:find(bt, 1, true)) then
+                    return true, b
+                end
+            end
+            return false
+        end
+
         local handleBookChosen = function(chosen_path)
             if not chosen_path or chosen_path == "" then return end
-            for _, b in ipairs(books_roster) do
-                if b.path and b.path == chosen_path then
-                    UIManager:show(InfoMessage:new{
-                        text = self.loc:t("manage_series_already_added") or "This book is already in the series roster.",
-                        timeout = 3
-                    })
-                    return
-                end
+            local already_added = isBookInRoster(chosen_path)
+            if already_added then
+                UIManager:show(InfoMessage:new{
+                    text = self.loc:t("manage_series_already_added") or "This book is already in the series roster.",
+                    timeout = 3
+                })
+                return
             end
 
             local meta = self.series_manager:readBookMetadata(chosen_path)
@@ -6691,6 +6774,7 @@ function M:showManageSeriesDialog()
             XRayBookPicker.show{
                 initial_path = start_dir,
                 loc = self.loc,
+                is_book_in_roster = isBookInRoster,
                 on_confirm = handleBookChosen,
             }
             return
@@ -6797,13 +6881,15 @@ function M:showManageSeriesDialog()
             active_series_menu = nil
         end
 
+        local state_w = Screen.scaleBySize and Screen:scaleBySize(28) or 28
         local items = {}
 
         -- Row 1: Series Name Header / Editor
         local display_name = (series_name and series_name ~= "") and series_name or (self.loc:t("manage_series_unnamed") or "(Tap to name series)")
         table.insert(items, {
-            text = string.format("★  %s: %s", self.loc:t("manage_series_series_name") or "Series Name", display_name),
-            keep_menu_open = false,
+            state = makeMenuIcon("star.svg"),
+            text = string.format("%s: %s", self.loc:t("manage_series_series_name") or "Series Name", display_name),
+            keep_menu_open = true,
             separator = true,
             callback = function()
                 local InputDialog = require("ui/widget/inputdialog")
@@ -6833,11 +6919,14 @@ function M:showManageSeriesDialog()
 
         -- Row 2: Add Book action button
         table.insert(items, {
-            text = "✚  " .. (self.loc:t("manage_series_add_book") or "Add Book…"),
-            keep_menu_open = false,
+            state = makeMenuIcon("plus.svg"),
+            text = self.loc:t("manage_series_add_book") or "Add Book…",
+            keep_menu_open = true,
             separator = true,
             callback = function()
-                openFileChooserToAdd()
+                UIManager:nextTick(function()
+                    openFileChooserToAdd()
+                end)
             end,
         })
 
@@ -6851,18 +6940,21 @@ function M:showManageSeriesDialog()
             local captured_idx = i
 
             table.insert(items, {
+                state = makeMenuIcon("book.svg"),
                 text = book_label,
                 keep_menu_open = false,
                 sub_item_table = {
                     {
-                        text = "✎  " .. (self.loc:t("manage_series_edit_entry") or "Edit Volume # & Title"),
+                        state = makeMenuIcon("edit.svg"),
+                        text = self.loc:t("manage_series_edit_entry") or "Edit Volume # & Title",
                         keep_menu_open = false,
                         callback = function()
                             editBookEntry(captured_item, function() rebuildMenu() end)
                         end,
                     },
                     {
-                        text = "✗  " .. (self.loc:t("manage_series_remove_entry") or "Remove from Series"),
+                        state = makeMenuIcon("trash-2.svg"),
+                        text = self.loc:t("manage_series_remove_entry") or "Remove from Series",
                         keep_menu_open = false,
                         callback = function()
                             table.remove(books_roster, captured_idx)
@@ -6876,7 +6968,8 @@ function M:showManageSeriesDialog()
 
         -- Save / Done button at bottom
         table.insert(items, {
-            text = "✔  " .. (self.loc:t("save") or "Save Series"),
+            state = makeMenuIcon("check.svg"),
+            text = self.loc:t("save") or "Save Series",
             separator = true,
             keep_menu_open = false,
             callback = function()
@@ -6887,6 +6980,7 @@ function M:showManageSeriesDialog()
         active_series_menu = self:newMenu("manage_series_menu", {
             title = self.loc:t("menu_manage_series") or "Manage Series",
             item_table = items,
+            state_w = state_w,
             is_borderless = true,
             width = Screen:getWidth(),
             height = Screen:getHeight(),
@@ -7098,32 +7192,6 @@ function M:showImageActions(image_entry)
     local card_padding = sc(14)
     local card_border = sc(2)
     local inner_w = dialog_w - (card_padding * 2) - (card_border * 2)
-
-    local _asset_path_cache = {}
-    local function getAssetPath(filename)
-        if _asset_path_cache[filename] then
-            return _asset_path_cache[filename]
-        end
-        local info = debug.getinfo(1, "S")
-        local file_dir = (info and info.source and info.source:match("^@?(.*[/\\])")) or ""
-        local candidates = {
-            file_dir .. "assets/" .. filename,
-            file_dir .. "../assets/" .. filename,
-            "plugins/xray.koplugin/assets/" .. filename,
-            "./plugins/xray.koplugin/assets/" .. filename,
-        }
-        for _, path in ipairs(candidates) do
-            local f = io.open(path, "r")
-            if f then
-                f:close()
-                _asset_path_cache[filename] = path
-                return path
-            end
-        end
-        local fallback = "plugins/xray.koplugin/assets/" .. filename
-        _asset_path_cache[filename] = fallback
-        return fallback
-    end
 
     local overlay
     local is_touch_dev = false
