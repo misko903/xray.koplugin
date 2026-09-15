@@ -721,6 +721,70 @@ msgstr "Поиск '%s'..."
 msgid "low_conf_match"
 msgstr "Частичное совпадение — показано '%s' для вашего запроса. Нажмите ниже, чтобы найти точный термин."
 
+# en-hash: 8de3f0d375e174f5e13248da04a2e010
+msgid "manage_series_add_book"
+msgstr "Добавить книгу…"
+
+# en-hash: c062ba6f0bf6cfa159d59578ed73c116
+msgid "manage_series_already_added"
+msgstr "Эта книга уже добавлена в серию."
+
+# en-hash: 2d0b508f5a428c8364b2edd4c7ee81ce
+msgid "manage_series_choose_book"
+msgstr "Выберите книгу для добавления"
+
+# en-hash: ccb28aae73c0fa2f224f85843bc776ab
+msgid "manage_series_current_book"
+msgstr "(Текущая книга)"
+
+# en-hash: 452bd296984fe704e30fe4c167a505ee
+msgid "manage_series_custom_index"
+msgstr "Свой номер…"
+
+# en-hash: f850ec88574a6b5332fc1471dce88a39
+msgid "manage_series_edit_entry"
+msgstr "Изменить номер тома и название"
+
+# en-hash: d51cac3bcb2c9caf1608d6a8f5fb6cc0
+msgid "manage_series_edit_title"
+msgstr "Изменить название книги"
+
+# en-hash: 6908c2ddc1c1ee02590ca5ee11878ef2
+msgid "manage_series_enter_index"
+msgstr "Введите номер тома"
+
+# en-hash: 7cc4900dc501cabf3a477278da440bb4
+msgid "manage_series_name_required"
+msgstr "Пожалуйста, укажите название серии перед сохранением."
+
+# en-hash: 0cd58bbe5e1e8aa133266dc334323ac2
+msgid "manage_series_pick_index"
+msgstr "Выберите номер тома"
+
+# en-hash: 42747cf1899503ce102405167611ad71
+msgid "manage_series_remove_entry"
+msgstr "Удалить из серии"
+
+# en-hash: feef400b2d3d25987c5bf362608712a8
+msgid "manage_series_saved"
+msgstr "Серия сохранена."
+
+# en-hash: cb10d930e64c65895417dccf39caa964
+msgid "manage_series_series_name"
+msgstr "Название серии"
+
+# en-hash: b78a3223503896721cca1303f776159b
+msgid "manage_series_title_label"
+msgstr "Название"
+
+# en-hash: cfda50147324ea4ffe8d43abcd31dd3d
+msgid "manage_series_unnamed"
+msgstr "(Нажмите, чтобы назвать серию)"
+
+# en-hash: 156542f5bb1113424fe45e93f664ca32
+msgid "manage_series_volume_label"
+msgstr "Том №"
+
 # en-hash: 6ca35323241366b4da17cd03396f1f69
 msgid "manual_pick"
 msgstr "Manual Pick"
@@ -904,6 +968,10 @@ msgstr "Места"
 # en-hash: 10d0de28911c5f66463b9c8783f8148a
 msgid "menu_maintenance"
 msgstr "Обслуживание"
+
+# en-hash: 853bc97f601398edb9bfc5415ad553bd
+msgid "menu_manage_series"
+msgstr "Управление сериями"
 
 # en-hash: 2c126ee6ce85ef471a3a0e096c78b724
 msgid "menu_mentions_settings"
@@ -1169,6 +1237,22 @@ msgstr "plugins/xray.koplugin"
 msgid "pending_duplicates_prompt"
 msgstr "ИИ обнаружил %d потенциальных дубликатов с момента последнего сканирования. Проверить сейчас?"
 
+# en-hash: 3c74d67fe6539aa42a867a2f7bc6dffc
+msgid "picker_cover_view"
+msgstr "Обложки"
+
+# en-hash: 7ee4364fa0e2e61963fcd9007342b20c
+msgid "picker_items_count"
+msgstr "%d папок, %d книг"
+
+# en-hash: 4ee29ca12c7d126654bd0e5275de6135
+msgid "picker_list_view"
+msgstr "Список"
+
+# en-hash: bec831129824662ffbf6183ac501aa11
+msgid "picker_no_books_found"
+msgstr "В этой папке нет файлов электронных книг."
+
 # en-hash: d87f433b237815fa419a2ac953956c54
 msgid "plugin_description"
 msgstr "Улучшите чтение с помощью анализа книг на базе ИИ, как в Kindle X-Ray!"
@@ -1288,6 +1372,10 @@ msgstr "Серия обнаружена"
 # en-hash: ddb44dbe6c8ac2048d293e6102eb4c54
 msgid "series_disabled_msg"
 msgstr "Автоматический запрос отключен для этой книги. Вы можете вручную получить краткое содержание из меню X-Ray."
+
+# en-hash: 3b7f48d3ca71c86651435ebde85b76cf
+msgid "series_link_no_chooser"
+msgstr "Выбор файла недоступен на этом устройстве."
 
 # en-hash: 45038789e6aae12b35398440e65bf810
 msgid "series_no_prior_detected"

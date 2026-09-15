@@ -721,6 +721,70 @@ msgstr "正在查询 '%s'..."
 msgid "low_conf_match"
 msgstr "部分匹配 — 已显示“%s”的关联信息。点击下方重新获取精确词条。"
 
+# en-hash: 8de3f0d375e174f5e13248da04a2e010
+msgid "manage_series_add_book"
+msgstr "添加书籍…"
+
+# en-hash: c062ba6f0bf6cfa159d59578ed73c116
+msgid "manage_series_already_added"
+msgstr "此书已在系列列表中。"
+
+# en-hash: 2d0b508f5a428c8364b2edd4c7ee81ce
+msgid "manage_series_choose_book"
+msgstr "选择要添加的书籍"
+
+# en-hash: ccb28aae73c0fa2f224f85843bc776ab
+msgid "manage_series_current_book"
+msgstr "（当前书籍）"
+
+# en-hash: 452bd296984fe704e30fe4c167a505ee
+msgid "manage_series_custom_index"
+msgstr "自定义编号…"
+
+# en-hash: f850ec88574a6b5332fc1471dce88a39
+msgid "manage_series_edit_entry"
+msgstr "编辑卷号与标题"
+
+# en-hash: d51cac3bcb2c9caf1608d6a8f5fb6cc0
+msgid "manage_series_edit_title"
+msgstr "编辑书籍标题"
+
+# en-hash: 6908c2ddc1c1ee02590ca5ee11878ef2
+msgid "manage_series_enter_index"
+msgstr "输入卷号"
+
+# en-hash: 7cc4900dc501cabf3a477278da440bb4
+msgid "manage_series_name_required"
+msgstr "保存前请指定系列名称。"
+
+# en-hash: 0cd58bbe5e1e8aa133266dc334323ac2
+msgid "manage_series_pick_index"
+msgstr "选择卷号"
+
+# en-hash: 42747cf1899503ce102405167611ad71
+msgid "manage_series_remove_entry"
+msgstr "从系列中移除"
+
+# en-hash: feef400b2d3d25987c5bf362608712a8
+msgid "manage_series_saved"
+msgstr "系列已保存。"
+
+# en-hash: cb10d930e64c65895417dccf39caa964
+msgid "manage_series_series_name"
+msgstr "系列名称"
+
+# en-hash: b78a3223503896721cca1303f776159b
+msgid "manage_series_title_label"
+msgstr "标题"
+
+# en-hash: cfda50147324ea4ffe8d43abcd31dd3d
+msgid "manage_series_unnamed"
+msgstr "（点击命名系列）"
+
+# en-hash: 156542f5bb1113424fe45e93f664ca32
+msgid "manage_series_volume_label"
+msgstr "卷号"
+
 # en-hash: 6ca35323241366b4da17cd03396f1f69
 msgid "manual_pick"
 msgstr "手动挑选"
@@ -904,6 +968,10 @@ msgstr "地点"
 # en-hash: 10d0de28911c5f66463b9c8783f8148a
 msgid "menu_maintenance"
 msgstr "维护"
+
+# en-hash: 853bc97f601398edb9bfc5415ad553bd
+msgid "menu_manage_series"
+msgstr "管理系列"
 
 # en-hash: 2c126ee6ce85ef471a3a0e096c78b724
 msgid "menu_mentions_settings"
@@ -1169,6 +1237,22 @@ msgstr "plugins/xray.koplugin"
 msgid "pending_duplicates_prompt"
 msgstr "AI 发现了上次获取的 %d 个潜在重复项。现在查看吗？"
 
+# en-hash: 3c74d67fe6539aa42a867a2f7bc6dffc
+msgid "picker_cover_view"
+msgstr "封面"
+
+# en-hash: 7ee4364fa0e2e61963fcd9007342b20c
+msgid "picker_items_count"
+msgstr "%d 个文件夹，%d 本书"
+
+# en-hash: 4ee29ca12c7d126654bd0e5275de6135
+msgid "picker_list_view"
+msgstr "列表"
+
+# en-hash: bec831129824662ffbf6183ac501aa11
+msgid "picker_no_books_found"
+msgstr "该文件夹内未找到电子书。"
+
 # en-hash: d87f433b237815fa419a2ac953956c54
 msgid "plugin_description"
 msgstr "使用 AI 驱动的书籍分析提升您的阅读体验，就像 Kindle X-Ray 一样！"
@@ -1288,6 +1372,10 @@ msgstr "检测到系列书籍"
 # en-hash: ddb44dbe6c8ac2048d293e6102eb4c54
 msgid "series_disabled_msg"
 msgstr "已为本书禁用自动提示。你可以从 X-Ray 菜单手动获取剧情回顾。"
+
+# en-hash: 3b7f48d3ca71c86651435ebde85b76cf
+msgid "series_link_no_chooser"
+msgstr "此设备不支持文件选择器。"
 
 # en-hash: 45038789e6aae12b35398440e65bf810
 msgid "series_no_prior_detected"

@@ -542,6 +542,54 @@ msgstr "Looking up '%s'..."
 msgid "low_conf_match"
 msgstr "Partial match — showing '%s' for your query. Tap below to fetch the exact term."
 
+msgid "manage_series_add_book"
+msgstr "Add Book…"
+
+msgid "manage_series_already_added"
+msgstr "This book is already in the series roster."
+
+msgid "manage_series_choose_book"
+msgstr "Choose Book to Add"
+
+msgid "manage_series_current_book"
+msgstr "(Current Book)"
+
+msgid "manage_series_custom_index"
+msgstr "Custom number…"
+
+msgid "manage_series_edit_entry"
+msgstr "Edit Volume # & Title"
+
+msgid "manage_series_edit_title"
+msgstr "Edit Book Title"
+
+msgid "manage_series_enter_index"
+msgstr "Enter Volume Number"
+
+msgid "manage_series_name_required"
+msgstr "Please specify a series name before saving."
+
+msgid "manage_series_pick_index"
+msgstr "Select Volume #"
+
+msgid "manage_series_remove_entry"
+msgstr "Remove from Series"
+
+msgid "manage_series_saved"
+msgstr "Series saved."
+
+msgid "manage_series_series_name"
+msgstr "Series Name"
+
+msgid "manage_series_title_label"
+msgstr "Title"
+
+msgid "manage_series_unnamed"
+msgstr "(Tap to name series)"
+
+msgid "manage_series_volume_label"
+msgstr "Volume #"
+
 msgid "manual_pick"
 msgstr "Manual Pick"
 
@@ -679,6 +727,9 @@ msgstr "Locations"
 
 msgid "menu_maintenance"
 msgstr "Maintenance"
+
+msgid "menu_manage_series"
+msgstr "Manage Series"
 
 msgid "menu_mentions_settings"
 msgstr "Mentions Settings"
@@ -878,6 +929,18 @@ msgstr "plugins/xray.koplugin"
 msgid "pending_duplicates_prompt"
 msgstr "AI found %d possible duplicate location(s) from the last fetch. Review now?"
 
+msgid "picker_cover_view"
+msgstr "Covers"
+
+msgid "picker_items_count"
+msgstr "%d folders, %d books"
+
+msgid "picker_list_view"
+msgstr "List"
+
+msgid "picker_no_books_found"
+msgstr "No ebook files found in this folder."
+
 msgid "plugin_description"
 msgstr "Transform your reading experience with AI-powered book analysis, just like Amazon Kindle X-Ray!"
 
@@ -967,6 +1030,9 @@ msgstr "Series Detected"
 
 msgid "series_disabled_msg"
 msgstr "Auto-prompt disabled for this book. You can manually fetch recap from X-Ray menu."
+
+msgid "series_link_no_chooser"
+msgstr "File picker is not available on this device."
 
 msgid "series_no_prior_detected"
 msgstr "No prior books detected for this series."

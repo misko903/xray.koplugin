@@ -682,6 +682,275 @@ function SeriesManager:findLocalBookXRay(series_info, target_index, current_book
     return nil
 end
 
+-- Write or update series metadata into the book's KOReader sidecar (metadata.epub.lua or docsettings)
+function SeriesManager:writeDocMetadata(epub_path, series_name, series_index)
+    if not epub_path or epub_path == "" then return false end
+    series_index = tonumber(series_index)
+
+    -- Attempt 1: Via DocSettings if available in KOReader runtime
+    local ok_ds, DocSettings = pcall(require, "docsettings")
+    if ok_ds and DocSettings and DocSettings.open then
+        local ok_save = pcall(function()
+            local ds = DocSettings:open(epub_path)
+            if ds then
+                local props = ds:readSetting("doc_props") or {}
+                if series_name and series_name ~= "" then
+                    props.series = series_name
+                end
+                if series_index then
+                    props.series_index = series_index
+                end
+                ds:saveSetting("doc_props", props)
+                if ds.flush then ds:flush() end
+                logger.info("SeriesManager: Saved series metadata via DocSettings for: " .. tostring(epub_path))
+                return true
+            end
+            return false
+        end)
+        if ok_save then return true end
+    end
+
+    -- Attempt 2: Fallback direct write into <file>.sdr/metadata.epub.lua
+    local sep = epub_path:find("\\") and "\\" or "/"
+    local sdr_dir = epub_path .. ".sdr"
+    local sidecar_path = sdr_dir .. sep .. "metadata.epub.lua"
+
+    local ok_direct = pcall(function()
+        local escaped_dir = sdr_dir:gsub("'", "'\\''")
+        os.execute("mkdir -p '" .. escaped_dir .. "'")
+        local loaded = safeLoadCacheFile(sidecar_path) or {}
+        loaded.doc_props = loaded.doc_props or {}
+        if series_name and series_name ~= "" then
+            loaded.doc_props.series = series_name
+        end
+        if series_index then
+            loaded.doc_props.series_index = series_index
+        end
+
+        local f = io.open(sidecar_path, "w")
+        if not f then return false end
+        f:write("-- KOReader Document Metadata Sidecar\nreturn ")
+        self:serializeToFile(f, loaded, "")
+        f:write("\n")
+        f:close()
+        logger.info("SeriesManager: Saved series metadata via direct file write to: " .. tostring(sidecar_path))
+        return true
+    end)
+
+    return ok_direct
+end
+
+-- Read metadata from an ebook sidecar or xray cache
+function SeriesManager:readBookMetadata(book_path)
+    if not book_path or book_path == "" then return nil end
+    local sep = book_path:find("\\") and "\\" or "/"
+    local sdr_dir = book_path .. ".sdr"
+    local sidecar_path = sdr_dir .. sep .. "metadata.epub.lua"
+    local xray_cache_path = sdr_dir .. sep .. "xray_cache.lua"
+
+    local title, author, series_name, series_index
+
+    local sidecar = safeLoadCacheFile(sidecar_path)
+    if sidecar and sidecar.doc_props then
+        local dp = sidecar.doc_props
+        title = dp.title
+        author = dp.authors or dp.author
+        series_name = dp.series or dp.Series
+        series_index = tonumber(dp.series_index or dp.seriesindex or dp.SeriesIndex)
+    end
+
+    local xray_cache = safeLoadCacheFile(xray_cache_path)
+    if xray_cache then
+        title = title or xray_cache.title or xray_cache.book_title
+        author = author or xray_cache.author or xray_cache.book_author or xray_cache.authors
+        series_name = series_name or xray_cache.series or xray_cache.series_name
+        series_index = series_index or tonumber(xray_cache.series_index)
+    end
+
+    if not title then
+        local filename = book_path:match("([^/\\]+)$") or book_path
+        title = filename:gsub("%.[^%.]+$", "")
+    end
+
+    if not series_index and title then
+        series_index = self:extractIndexFromTitle(title, series_name)
+    end
+
+    return {
+        path = book_path,
+        title = title,
+        author = author,
+        series = series_name,
+        series_index = series_index,
+    }
+end
+
+-- Scan directory (and sibling Calibre directories) for supported ebook files
+function SeriesManager:scanFolderForEpubs(current_book_path)
+    if not current_book_path or current_book_path == "" or not lfs then return {} end
+    local sep = current_book_path:find("\\") and "\\" or "/"
+    local current_dir = current_book_path:match("^(.*)[/\\][^/\\]+$")
+    if not current_dir then return {} end
+
+    local results = {}
+    local seen_paths = {}
+
+    local function isEbook(filename)
+        if not filename then return false end
+        local fn = filename:lower()
+        return fn:match("%.epub$") or fn:match("%.kepub%.epub$")
+            or fn:match("%.mobi$") or fn:match("%.azw3$")
+            or fn:match("%.fb2$") or fn:match("%.pdf$")
+    end
+
+    local function scanDir(dir)
+        if not dir or not lfs or not lfs.dir then return end
+        pcall(function()
+            for entry in lfs.dir(dir) do
+                if entry ~= "." and entry ~= ".." then
+                    local entry_path = dir .. sep .. entry
+                    if isEbook(entry) and not seen_paths[entry_path] then
+                        seen_paths[entry_path] = true
+                        local meta = self:readBookMetadata(entry_path)
+                        if meta then
+                            table.insert(results, meta)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- 1. Scan current directory
+    scanDir(current_dir)
+
+    -- 2. Scan sibling directories under parent (Calibre author structure)
+    local parent_dir = current_dir:match("^(.*)[/\\][^/\\]+$")
+    if parent_dir and parent_dir ~= "" then
+        pcall(function()
+            local dir_count = 0
+            for sub in lfs.dir(parent_dir) do
+                if sub ~= "." and sub ~= ".." then
+                    dir_count = dir_count + 1
+                    if dir_count > 50 then break end
+                    local sub_path = parent_dir .. sep .. sub
+                    if sub_path ~= current_dir then
+                        local attr = lfs.attributes and lfs.attributes(sub_path)
+                        if attr and attr.mode == "directory" then
+                            scanDir(sub_path)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    return results
+end
+
+-- Merge series cache, current book metadata, and folder scan into a consolidated series roster
+function SeriesManager:buildSeriesRoster(book_data, props, current_book_path)
+    props = props or {}
+    local current_title = (book_data and (book_data.title or book_data.book_title))
+        or (props.title and (type(props.title) == "table" and table.concat(props.title, ", ") or tostring(props.title)))
+        or (current_book_path and current_book_path:match("([^/\\]+)$"):gsub("%.[^%.]+$", ""))
+        or "Current Book"
+
+    local current_author = (book_data and (book_data.author or book_data.book_author or book_data.authors))
+        or (props.authors and (type(props.authors) == "table" and table.concat(props.authors, ", ") or tostring(props.authors)))
+
+    local series_name = (book_data and book_data.series)
+        or props.series or props.Series
+
+    local current_index = tonumber(book_data and book_data.series_index)
+        or tonumber(props.series_index or props.seriesindex or props.SeriesIndex)
+        or self:extractIndexFromTitle(current_title, series_name)
+
+    local slug = (book_data and book_data.series_slug) or (series_name and makeSlug(series_name))
+
+    local roster = {}
+    local indexed_roster = {}
+
+    -- 1. Load from series cache if slug available
+    local cache_data = slug and self:loadSeriesCache(slug)
+    if cache_data and cache_data.books then
+        for idx, b in pairs(cache_data.books) do
+            local num_idx = tonumber(idx)
+            if num_idx and b then
+                local b_path = cache_data.book_paths and cache_data.book_paths[num_idx]
+                local item = {
+                    index = num_idx,
+                    title = b.title or string.format("Book %d", num_idx),
+                    author = b.author,
+                    path = b_path,
+                    source = "cache"
+                }
+                roster[num_idx] = item
+                indexed_roster[num_idx] = item
+            end
+        end
+    end
+
+    -- 2. Include current book
+    local cur_item = {
+        index = current_index or 1,
+        title = current_title,
+        author = current_author,
+        path = current_book_path,
+        is_current = true,
+        source = "current"
+    }
+    roster[cur_item.index] = cur_item
+    indexed_roster[cur_item.index] = cur_item
+
+    -- 3. Scan folder for nearby ebooks sharing this series name
+    if current_book_path and lfs then
+        local scanned = self:scanFolderForEpubs(current_book_path)
+        for _, b in ipairs(scanned) do
+            if b.path ~= current_book_path then
+                local matches_series = false
+                if series_name and series_name ~= "" and b.series and b.series ~= "" then
+                    if makeSlug(b.series) == makeSlug(series_name) then
+                        matches_series = true
+                    end
+                end
+
+                if matches_series and b.series_index then
+                    local target_idx = b.series_index
+                    if not roster[target_idx] then
+                        roster[target_idx] = {
+                            index = target_idx,
+                            title = b.title,
+                            author = b.author,
+                            path = b.path,
+                            source = "scanned"
+                        }
+                    end
+                end
+            end
+        end
+    end
+
+    -- Convert roster map to array sorted by index
+    local sorted_list = {}
+    for _, item in pairs(roster) do
+        table.insert(sorted_list, item)
+    end
+    table.sort(sorted_list, function(a, b)
+        if a.index ~= b.index then
+            return (a.index or 0) < (b.index or 0)
+        end
+        return (a.title or "") < (b.title or "")
+    end)
+
+    return {
+        series_name = series_name or "",
+        slug = slug or "",
+        books = sorted_list,
+        current_index = current_index,
+    }
+end
+
 -- Stream-serialize to file
 function SeriesManager:serializeToFile(f, obj, indent, seen)
     seen = seen or {}

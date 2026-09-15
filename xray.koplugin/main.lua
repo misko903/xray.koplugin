@@ -21,7 +21,10 @@ local XRayPlugin = (ok_wc and WidgetContainer and WidgetContainer.extend) and Wi
 -- This keeps main.lua clean while allowing modules to use self:method() calls.
 local function _t(self, key, default)
     if self.loc and self.loc.t then
-        return self.loc:t(key) or default
+        local val = self.loc:t(key)
+        if val and val ~= key then
+            return val
+        end
     end
     return default
 end
@@ -1082,18 +1085,6 @@ function XRayPlugin:onDispatcherRegisterActions()
             title = _t(self, "menu_images", "X-Ray: Images"),
             general = true,
         })
-        Dispatcher:registerAction("xray_scan_units", {
-            category = "none",
-            event = "ShowXRayScanUnits",
-            title = _t(self, "menu_unit_scan", "X-Ray: Scan Units"),
-            general = true,
-        })
-        Dispatcher:registerAction("xray_toggle_unit_converter", {
-            category = "none",
-            event = "ToggleXRayUnitConverter",
-            title = _t(self, "menu_unit_toggle", "X-Ray: Toggle Unit Converter"),
-            general = true,
-        })
     end)
 end
 
@@ -1134,20 +1125,6 @@ end
 
 function XRayPlugin:onShowXRayHistoricalFigures()
     self:showHistoricalFigures()
-    return true
-end
-
-function XRayPlugin:onShowXRayScanUnits()
-    if self.scanBookForUnits then
-        self:scanBookForUnits()
-    end
-    return true
-end
-
-function XRayPlugin:onToggleXRayUnitConverter()
-    if self.toggleUnitConverter then
-        self:toggleUnitConverter()
-    end
     return true
 end
 
@@ -1487,6 +1464,11 @@ function XRayPlugin:getSubMenuItems()
                                 text = self.loc:t("menu_fetch_series_context") or "Fetch / Refresh Series Context",
                                 keep_menu_open = true,
                                 callback = function() self:manualFetchSeriesContext() end,
+                            },
+                            {
+                                text = self.loc:t("menu_manage_series") or "Manage Series…",
+                                keep_menu_open = true,
+                                callback = function() self:showManageSeriesDialog() end,
                             },
                             {
                                 text = self.loc:t("menu_clear_series_cache") or "Clear Series Cache",

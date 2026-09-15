@@ -601,5 +601,51 @@ describe("xray_seriesmanager", function()
             assert.is_true(imported_names["Silkworm Character"])
         end)
     end)
+
+    describe("Manage Series helpers", function()
+        it("writeDocMetadata creates sidecar and saves series info", function()
+            local test_epub = "/tmp/koreader/test_book.epub"
+            local ok = manager:writeDocMetadata(test_epub, "The Stormlight Archive", 2)
+            assert.is_true(ok)
+
+            local meta = manager:readBookMetadata(test_epub)
+            assert.is_not_nil(meta)
+            assert.are.equal("The Stormlight Archive", meta.series)
+            assert.are.equal(2, meta.series_index)
+        end)
+
+        it("buildSeriesRoster consolidates cache and current book info", function()
+            local slug = "mistborn"
+            local cache_data = {
+                books = {
+                    [1] = { title = "The Final Empire", author = "Brandon Sanderson" },
+                },
+                book_paths = {
+                    [1] = "/tmp/koreader/book1.epub"
+                }
+            }
+            manager:saveSeriesCache(slug, cache_data)
+
+            local book_data = {
+                title = "The Well of Ascension",
+                author = "Brandon Sanderson",
+                series = "Mistborn",
+                series_slug = slug,
+                series_index = 2
+            }
+            local props = { series = "Mistborn", series_index = 2 }
+
+            local roster = manager:buildSeriesRoster(book_data, props, "/tmp/koreader/book2.epub")
+            assert.is_not_nil(roster)
+            assert.are.equal("Mistborn", roster.series_name)
+            assert.are.equal(2, #roster.books)
+            assert.are.equal(1, roster.books[1].index)
+            assert.are.equal("The Final Empire", roster.books[1].title)
+            assert.are.equal(2, roster.books[2].index)
+            assert.are.equal("The Well of Ascension", roster.books[2].title)
+            assert.is_true(roster.books[2].is_current)
+        end)
+    end)
 end)
+
 

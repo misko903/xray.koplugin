@@ -6460,6 +6460,448 @@ function M:getCurrentSeriesInfo()
     return info
 end
 
+-- Manage Series UI: View, edit series name, assign/change volume numbers, add/remove books, and persist to sidecar metadata
+function M:showManageSeriesDialog()
+    if not self.series_manager then
+        local SeriesManager = require(plugin_path .. "xray_seriesmanager")
+        self.series_manager = SeriesManager:new()
+    end
+
+    local doc_file = self.ui and self.ui.document and self.ui.document.file
+    local props = self.ui and self.ui.document and self.ui.document.getProps and self.ui.document:getProps() or {}
+
+    local roster_data = self.series_manager:buildSeriesRoster(self.book_data, props, doc_file)
+    local series_name = roster_data.series_name or ""
+    local books_roster = roster_data.books or {}
+
+    local function sortRoster()
+        table.sort(books_roster, function(a, b)
+            if (a.index or 0) ~= (b.index or 0) then
+                return (a.index or 0) < (b.index or 0)
+            end
+            return (a.title or "") < (b.title or "")
+        end)
+    end
+    sortRoster()
+
+    local active_series_menu = nil
+    local active_picker_menu = nil
+    local active_edit_menu = nil
+
+    local function closePickerMenu()
+        if active_picker_menu then
+            local pm = active_picker_menu
+            active_picker_menu = nil
+            UIManager:close(pm)
+        end
+    end
+
+    local function closeEditMenu()
+        if active_edit_menu then
+            local em = active_edit_menu
+            active_edit_menu = nil
+            UIManager:close(em)
+        end
+    end
+
+    local function showIndexPicker(current_idx, callback)
+        closePickerMenu()
+
+        local options = {}
+        for i = 1, 50 do
+            table.insert(options, {
+                text = string.format("Book %d", i),
+                index = i,
+                checked = (i == current_idx),
+            })
+        end
+        table.insert(options, {
+            text = self.loc:t("manage_series_custom_index") or "Custom number…",
+            is_custom = true,
+        })
+
+        local item_table = {}
+        for _, opt in ipairs(options) do
+            local o = opt
+            table.insert(item_table, {
+                text = (o.checked and "✔ " or "   ") .. o.text,
+                keep_menu_open = false,
+                callback = function()
+                    if o.is_custom then
+                        local InputDialog = require("ui/widget/inputdialog")
+                        local num_dialog
+                        num_dialog = InputDialog:new{
+                            title = self.loc:t("manage_series_enter_index") or "Enter Volume Number",
+                            input = tostring(current_idx or 1),
+                            input_type = "number",
+                            buttons = {{{
+                                text = self.loc:t("cancel") or "Cancel",
+                                callback = function() UIManager:close(num_dialog) end,
+                            }, {
+                                text = self.loc:t("ok") or "OK",
+                                is_enter_default = true,
+                                callback = function()
+                                    local val = tonumber(num_dialog:getInputText())
+                                    UIManager:close(num_dialog)
+                                    if val and val > 0 then
+                                        closePickerMenu()
+                                        callback(math.floor(val))
+                                    end
+                                end,
+                            }}}
+                        }
+                        UIManager:show(num_dialog)
+                    else
+                        closePickerMenu()
+                        callback(o.index)
+                    end
+                end,
+            })
+        end
+
+        active_picker_menu = self:newMenu("series_index_picker", {
+            title = self.loc:t("manage_series_pick_index") or "Select Volume #",
+            item_table = item_table,
+            is_borderless = true,
+            width = Screen:getWidth(),
+            height = Screen:getHeight(),
+            on_close_callback = function()
+                active_picker_menu = nil
+            end,
+        })
+        UIManager:show(active_picker_menu)
+    end
+
+    local function editBookEntry(book_item, on_done)
+        closeEditMenu()
+
+        local edit_items = {
+            {
+                text = string.format("✎  %s: %s", self.loc:t("manage_series_volume_label") or "Volume #", tostring(book_item.index or 1)),
+                keep_menu_open = false,
+                callback = function()
+                    closeEditMenu()
+                    showIndexPicker(book_item.index, function(new_idx)
+                        book_item.index = new_idx
+                        sortRoster()
+                        if on_done then on_done() end
+                    end)
+                end,
+            },
+            {
+                text = string.format("✎  %s: %s", self.loc:t("manage_series_title_label") or "Title", tostring(book_item.title or "")),
+                keep_menu_open = false,
+                callback = function()
+                    local InputDialog = require("ui/widget/inputdialog")
+                    local title_dlg
+                    title_dlg = InputDialog:new{
+                        title = self.loc:t("manage_series_edit_title") or "Edit Book Title",
+                        input = book_item.title or "",
+                        buttons = {{{
+                            text = self.loc:t("cancel") or "Cancel",
+                            callback = function() UIManager:close(title_dlg) end,
+                        }, {
+                            text = self.loc:t("save") or "Save",
+                            is_enter_default = true,
+                            callback = function()
+                                local new_title = title_dlg:getInputText()
+                                UIManager:close(title_dlg)
+                                if new_title and #new_title > 0 then
+                                    closeEditMenu()
+                                    book_item.title = new_title
+                                    if on_done then on_done() end
+                                end
+                            end,
+                        }}}
+                    }
+                    UIManager:show(title_dlg)
+                end,
+            }
+        }
+
+        active_edit_menu = self:newMenu("series_book_edit", {
+            title = book_item.title or "Edit Book",
+            item_table = edit_items,
+            is_borderless = true,
+            width = Screen:getWidth(),
+            height = Screen:getHeight(),
+            on_close_callback = function()
+                active_edit_menu = nil
+            end,
+        })
+        UIManager:show(active_edit_menu)
+    end
+
+    local function openFileChooserToAdd()
+        local start_dir = doc_file and (doc_file:match("^(.*)[/\\][^/\\]+$") or doc_file) or "/sdcard/Books"
+        if start_dir:match("%.sdr$") then
+            start_dir = start_dir:gsub("[/\\]+[^/\\]+%.sdr$", "")
+        end
+
+        local ok_bp, XRayBookPicker = pcall(require, plugin_path .. "xray_book_picker")
+        if not ok_bp or not XRayBookPicker then
+            ok_bp, XRayBookPicker = pcall(require, "xray_book_picker")
+        end
+
+        -- In Calibre and folder-per-book setups, if start_dir contains only the current book
+        -- and no subfolders, start at the parent author directory so sibling books/folders
+        -- in the series are visible immediately.
+        if ok_bp and XRayBookPicker and XRayBookPicker.scanDirectory and XRayBookPicker.getParentPath then
+            local subdirs, books = XRayBookPicker.scanDirectory(start_dir)
+            if #subdirs == 0 and #books <= 1 then
+                local parent = XRayBookPicker.getParentPath(start_dir)
+                if parent then
+                    local p_subdirs, p_books = XRayBookPicker.scanDirectory(parent)
+                    if #p_subdirs > 0 or #p_books > 1 then
+                        start_dir = parent
+                    end
+                end
+            end
+        end
+
+        local handleBookChosen = function(chosen_path)
+            if not chosen_path or chosen_path == "" then return end
+            for _, b in ipairs(books_roster) do
+                if b.path and b.path == chosen_path then
+                    UIManager:show(InfoMessage:new{
+                        text = self.loc:t("manage_series_already_added") or "This book is already in the series roster.",
+                        timeout = 3
+                    })
+                    return
+                end
+            end
+
+            local meta = self.series_manager:readBookMetadata(chosen_path)
+            local suggested_index = meta and meta.series_index or (#books_roster + 1)
+
+            showIndexPicker(suggested_index, function(assigned_index)
+                table.insert(books_roster, {
+                    index = assigned_index,
+                    title = meta and meta.title or chosen_path:match("([^/\\]+)$"):gsub("%.[^%.]+$", ""),
+                    author = meta and meta.author,
+                    path = chosen_path,
+                    source = "manual"
+                })
+                sortRoster()
+                rebuildMenu()
+            end)
+        end
+
+        if ok_bp and XRayBookPicker and XRayBookPicker.show then
+            XRayBookPicker.show{
+                initial_path = start_dir,
+                loc = self.loc,
+                on_confirm = handleBookChosen,
+            }
+            return
+        end
+
+        -- Fallback to PathChooser if XRayBookPicker failed to load
+        local ok_pc, PathChooser = pcall(require, "ui/widget/pathchooser")
+        if not ok_pc or not PathChooser then
+            UIManager:show(InfoMessage:new{
+                text = self.loc:t("series_link_no_chooser") or "File picker is not available on this device.",
+                timeout = 4
+            })
+            return
+        end
+
+        UIManager:show(PathChooser:new{
+            title = self.loc:t("manage_series_choose_book") or "Choose Book to Add",
+            path = start_dir,
+            select_directory = false,
+            file_filter = function(filename)
+                filename = tostring(filename or ""):lower()
+                return filename:match("%.epub$") or filename:match("%.kepub%.epub$")
+                    or filename:match("%.mobi$") or filename:match("%.azw3$")
+                    or filename:match("%.fb2$") or filename:match("%.pdf$")
+            end,
+            onConfirm = handleBookChosen,
+        })
+    end
+
+    local function saveChanges()
+        if not series_name or series_name == "" then
+            UIManager:show(InfoMessage:new{
+                text = self.loc:t("manage_series_name_required") or "Please specify a series name before saving.",
+                timeout = 3
+            })
+            return
+        end
+
+        local slug = self.series_manager:makeSlug(series_name)
+        if not slug or slug == "" then slug = "series" end
+
+        -- 1. Sync all books to series cache
+        for _, b in ipairs(books_roster) do
+            if b.index then
+                local minimal_data = {
+                    title = b.title,
+                    author = b.author,
+                    characters = {},
+                    locations = {},
+                    terms = {},
+                    timeline = {},
+                }
+                -- If we have an existing cache or sidecar, load real entities if available
+                if b.path then
+                    local sep = b.path:find("\\") and "\\" or "/"
+                    local cache_file = b.path .. ".sdr" .. sep .. "xray_cache.lua"
+                    local ok_c, real_cache = pcall(dofile, cache_file)
+                    if ok_c and type(real_cache) == "table" then
+                        minimal_data = real_cache
+                    end
+                end
+
+                self.series_manager:syncBookToSeriesCache(slug, b.index, minimal_data, b.path)
+
+                -- 2. Write metadata to KOReader sidecar
+                if b.path then
+                    self.series_manager:writeDocMetadata(b.path, series_name, b.index)
+                end
+            end
+        end
+
+        -- 3. Update current book data and cache
+        if self.book_data then
+            self.book_data.series = series_name
+            self.book_data.series_slug = slug
+            for _, b in ipairs(books_roster) do
+                if b.is_current or (doc_file and b.path == doc_file) then
+                    self.book_data.series_index = b.index
+                end
+            end
+            if self.cache_manager and doc_file then
+                self.cache_manager:asyncSaveCache(doc_file, self.book_data)
+            end
+        end
+
+        closePickerMenu()
+        closeEditMenu()
+        if active_series_menu then
+            UIManager:close(active_series_menu)
+            active_series_menu = nil
+        end
+
+        UIManager:show(InfoMessage:new{
+            text = self.loc:t("manage_series_saved") or "Series saved.",
+            timeout = 3
+        })
+    end
+
+    function rebuildMenu()
+        closePickerMenu()
+        closeEditMenu()
+        if active_series_menu then
+            UIManager:close(active_series_menu)
+            active_series_menu = nil
+        end
+
+        local items = {}
+
+        -- Row 1: Series Name Header / Editor
+        local display_name = (series_name and series_name ~= "") and series_name or (self.loc:t("manage_series_unnamed") or "(Tap to name series)")
+        table.insert(items, {
+            text = string.format("★  %s: %s", self.loc:t("manage_series_series_name") or "Series Name", display_name),
+            keep_menu_open = false,
+            separator = true,
+            callback = function()
+                local InputDialog = require("ui/widget/inputdialog")
+                local name_dlg
+                name_dlg = InputDialog:new{
+                    title = self.loc:t("manage_series_series_name") or "Series Name",
+                    input = series_name or "",
+                    buttons = {{{
+                        text = self.loc:t("cancel") or "Cancel",
+                        callback = function() UIManager:close(name_dlg) end,
+                    }, {
+                        text = self.loc:t("save") or "Save",
+                        is_enter_default = true,
+                        callback = function()
+                            local val = name_dlg:getInputText()
+                            UIManager:close(name_dlg)
+                            if val then
+                                series_name = val:gsub("^%s+", ""):gsub("%s+$", "")
+                                rebuildMenu()
+                            end
+                        end,
+                    }}}
+                }
+                UIManager:show(name_dlg)
+            end,
+        })
+
+        -- Row 2: Add Book action button
+        table.insert(items, {
+            text = "✚  " .. (self.loc:t("manage_series_add_book") or "Add Book…"),
+            keep_menu_open = false,
+            separator = true,
+            callback = function()
+                openFileChooserToAdd()
+            end,
+        })
+
+        -- Book roster rows
+        for i, b in ipairs(books_roster) do
+            local idx_str = string.format("#%d", b.index or 0)
+            local current_badge = (b.is_current or (doc_file and b.path == doc_file)) and ("  " .. (self.loc:t("manage_series_current_book") or "(Current Book)")) or ""
+            local book_label = string.format("%-4s %s%s", idx_str, b.title or "Untitled", current_badge)
+
+            local captured_item = b
+            local captured_idx = i
+
+            table.insert(items, {
+                text = book_label,
+                keep_menu_open = false,
+                sub_item_table = {
+                    {
+                        text = "✎  " .. (self.loc:t("manage_series_edit_entry") or "Edit Volume # & Title"),
+                        keep_menu_open = false,
+                        callback = function()
+                            editBookEntry(captured_item, function() rebuildMenu() end)
+                        end,
+                    },
+                    {
+                        text = "✗  " .. (self.loc:t("manage_series_remove_entry") or "Remove from Series"),
+                        keep_menu_open = false,
+                        callback = function()
+                            table.remove(books_roster, captured_idx)
+                            sortRoster()
+                            rebuildMenu()
+                        end,
+                    }
+                }
+            })
+        end
+
+        -- Save / Done button at bottom
+        table.insert(items, {
+            text = "✔  " .. (self.loc:t("save") or "Save Series"),
+            separator = true,
+            keep_menu_open = false,
+            callback = function()
+                saveChanges()
+            end,
+        })
+
+        active_series_menu = self:newMenu("manage_series_menu", {
+            title = self.loc:t("menu_manage_series") or "Manage Series",
+            item_table = items,
+            is_borderless = true,
+            width = Screen:getWidth(),
+            height = Screen:getHeight(),
+            on_close_callback = function()
+                closePickerMenu()
+                closeEditMenu()
+                active_series_menu = nil
+            end,
+        })
+        UIManager:show(active_series_menu)
+    end
+
+    rebuildMenu()
+end
+
 function M:showImages(opts)
     opts = opts or {}
     self.image_tab = opts.tab or self.image_tab or "all"

@@ -721,6 +721,70 @@ msgstr "'%s' を検索中..."
 msgid "low_conf_match"
 msgstr "部分一致 — '%s' を表示しています。正確な用語を取得するには以下をタップしてください。"
 
+# en-hash: 8de3f0d375e174f5e13248da04a2e010
+msgid "manage_series_add_book"
+msgstr "本を追加…"
+
+# en-hash: c062ba6f0bf6cfa159d59578ed73c116
+msgid "manage_series_already_added"
+msgstr "この本はすでにシリーズに登録されています。"
+
+# en-hash: 2d0b508f5a428c8364b2edd4c7ee81ce
+msgid "manage_series_choose_book"
+msgstr "追加する本を選択"
+
+# en-hash: ccb28aae73c0fa2f224f85843bc776ab
+msgid "manage_series_current_book"
+msgstr "(現在の本)"
+
+# en-hash: 452bd296984fe704e30fe4c167a505ee
+msgid "manage_series_custom_index"
+msgstr "カスタム番号…"
+
+# en-hash: f850ec88574a6b5332fc1471dce88a39
+msgid "manage_series_edit_entry"
+msgstr "巻数とタイトルを編集"
+
+# en-hash: d51cac3bcb2c9caf1608d6a8f5fb6cc0
+msgid "manage_series_edit_title"
+msgstr "本のタイトルを編集"
+
+# en-hash: 6908c2ddc1c1ee02590ca5ee11878ef2
+msgid "manage_series_enter_index"
+msgstr "巻数を入力"
+
+# en-hash: 7cc4900dc501cabf3a477278da440bb4
+msgid "manage_series_name_required"
+msgstr "保存する前にシリーズ名を入力してください。"
+
+# en-hash: 0cd58bbe5e1e8aa133266dc334323ac2
+msgid "manage_series_pick_index"
+msgstr "巻数を選択"
+
+# en-hash: 42747cf1899503ce102405167611ad71
+msgid "manage_series_remove_entry"
+msgstr "シリーズから削除"
+
+# en-hash: feef400b2d3d25987c5bf362608712a8
+msgid "manage_series_saved"
+msgstr "シリーズを保存しました。"
+
+# en-hash: cb10d930e64c65895417dccf39caa964
+msgid "manage_series_series_name"
+msgstr "シリーズ名"
+
+# en-hash: b78a3223503896721cca1303f776159b
+msgid "manage_series_title_label"
+msgstr "タイトル"
+
+# en-hash: cfda50147324ea4ffe8d43abcd31dd3d
+msgid "manage_series_unnamed"
+msgstr "(タップしてシリーズ名を入力)"
+
+# en-hash: 156542f5bb1113424fe45e93f664ca32
+msgid "manage_series_volume_label"
+msgstr "巻数"
+
 # en-hash: 6ca35323241366b4da17cd03396f1f69
 msgid "manual_pick"
 msgstr "手動選択"
@@ -904,6 +968,10 @@ msgstr "場所"
 # en-hash: 10d0de28911c5f66463b9c8783f8148a
 msgid "menu_maintenance"
 msgstr "メンテナンス"
+
+# en-hash: 853bc97f601398edb9bfc5415ad553bd
+msgid "menu_manage_series"
+msgstr "シリーズ管理"
 
 # en-hash: 2c126ee6ce85ef471a3a0e096c78b724
 msgid "menu_mentions_settings"
@@ -1169,6 +1237,22 @@ msgstr "plugins/xray.koplugin"
 msgid "pending_duplicates_prompt"
 msgstr "前回の取得で%d件の重複の可能性がある場所が見つかりました。確認しますか？"
 
+# en-hash: 3c74d67fe6539aa42a867a2f7bc6dffc
+msgid "picker_cover_view"
+msgstr "表紙"
+
+# en-hash: 7ee4364fa0e2e61963fcd9007342b20c
+msgid "picker_items_count"
+msgstr "%d 個のフォルダー、%d 冊の書籍"
+
+# en-hash: 4ee29ca12c7d126654bd0e5275de6135
+msgid "picker_list_view"
+msgstr "リスト"
+
+# en-hash: bec831129824662ffbf6183ac501aa11
+msgid "picker_no_books_found"
+msgstr "このフォルダー内に電子書籍ファイルは見つかりませんでした。"
+
 # en-hash: d87f433b237815fa419a2ac953956c54
 msgid "plugin_description"
 msgstr "Amazon KindleのX-Rayのように、AIを活用した読書分析で読書体験を向上させます！"
@@ -1288,6 +1372,10 @@ msgstr "シリーズを検出"
 # en-hash: ddb44dbe6c8ac2048d293e6102eb4c54
 msgid "series_disabled_msg"
 msgstr "この書籍の自動プロンプトは無効です。X-Rayメニューから手動で要約を取得できます。"
+
+# en-hash: 3b7f48d3ca71c86651435ebde85b76cf
+msgid "series_link_no_chooser"
+msgstr "このデバイスではファイル選択機能を利用できません。"
 
 # en-hash: 45038789e6aae12b35398440e65bf810
 msgid "series_no_prior_detected"

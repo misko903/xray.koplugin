@@ -24,21 +24,40 @@ package.loaded["docsettings"] = {
 }
 
 package.loaded["lfs"] = {
-    attributes = function(path) 
-        -- Basic mock: if it ends in .sdr, it's a directory
+    attributes = function(path, req) 
+        if not path then return nil end
         if path:match("%.sdr$") or path:match("%.sdr/$") then
-            return { mode = "directory" }
+            return { mode = "directory", modification = 123456789 }
         end
-        -- If we can open it, it's a file
+        local ok_dir = os.execute("test -d '" .. tostring(path):gsub("'", "'\\''") .. "' 2>/dev/null")
+        if ok_dir == 0 or ok_dir == true then
+            return { mode = "directory", modification = 123456789 }
+        end
         local f = io.open(path, "r")
         if f then
+            local sz = f:seek("end") or 0
             f:close()
-            return { mode = "file" }
+            return { mode = "file", size = sz, modification = 123456789 }
         end
         return nil
     end,
+    dir = function(path)
+        local pipe = io.popen("ls -a1 '" .. tostring(path):gsub("'", "'\\''") .. "' 2>/dev/null")
+        if not pipe then
+            return function() return nil end
+        end
+        return function()
+            local line = pipe:read("*line")
+            if not line then
+                pipe:close()
+                return nil
+            end
+            return line
+        end
+    end,
     mkdir = function() return true end
 }
+package.loaded["libs/libkoreader-lfs"] = package.loaded["lfs"]
 
 package.loaded["logger"] = {
     info = function(...) end,

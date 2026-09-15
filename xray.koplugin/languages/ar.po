@@ -721,6 +721,70 @@ msgstr "جاري البحث عن '%s'..."
 msgid "low_conf_match"
 msgstr "تطابق جزئي — يظهر '%s' لاستعلامك. انقر أدناه لجلب المصطلح الدقيق."
 
+# en-hash: 8de3f0d375e174f5e13248da04a2e010
+msgid "manage_series_add_book"
+msgstr "إضافة كتاب…"
+
+# en-hash: c062ba6f0bf6cfa159d59578ed73c116
+msgid "manage_series_already_added"
+msgstr "هذا الكتاب موجود بالفعل في قائمة السلسلة."
+
+# en-hash: 2d0b508f5a428c8364b2edd4c7ee81ce
+msgid "manage_series_choose_book"
+msgstr "اختر كتابًا لإضافته"
+
+# en-hash: ccb28aae73c0fa2f224f85843bc776ab
+msgid "manage_series_current_book"
+msgstr "(الكتاب الحالي)"
+
+# en-hash: 452bd296984fe704e30fe4c167a505ee
+msgid "manage_series_custom_index"
+msgstr "رقم مخصص…"
+
+# en-hash: f850ec88574a6b5332fc1471dce88a39
+msgid "manage_series_edit_entry"
+msgstr "تعديل رقم المجلد والعنوان"
+
+# en-hash: d51cac3bcb2c9caf1608d6a8f5fb6cc0
+msgid "manage_series_edit_title"
+msgstr "تعديل عنوان الكتاب"
+
+# en-hash: 6908c2ddc1c1ee02590ca5ee11878ef2
+msgid "manage_series_enter_index"
+msgstr "أدخل رقم المجلد"
+
+# en-hash: 7cc4900dc501cabf3a477278da440bb4
+msgid "manage_series_name_required"
+msgstr "يرجى تحديد اسم السلسلة قبل الحفظ."
+
+# en-hash: 0cd58bbe5e1e8aa133266dc334323ac2
+msgid "manage_series_pick_index"
+msgstr "اختر رقم المجلد"
+
+# en-hash: 42747cf1899503ce102405167611ad71
+msgid "manage_series_remove_entry"
+msgstr "إزالة من السلسلة"
+
+# en-hash: feef400b2d3d25987c5bf362608712a8
+msgid "manage_series_saved"
+msgstr "تم حفظ السلسلة."
+
+# en-hash: cb10d930e64c65895417dccf39caa964
+msgid "manage_series_series_name"
+msgstr "اسم السلسلة"
+
+# en-hash: b78a3223503896721cca1303f776159b
+msgid "manage_series_title_label"
+msgstr "العنوان"
+
+# en-hash: cfda50147324ea4ffe8d43abcd31dd3d
+msgid "manage_series_unnamed"
+msgstr "(اضغط لتسمية السلسلة)"
+
+# en-hash: 156542f5bb1113424fe45e93f664ca32
+msgid "manage_series_volume_label"
+msgstr "رقم المجلد"
+
 # en-hash: 6ca35323241366b4da17cd03396f1f69
 msgid "manual_pick"
 msgstr "اختيار يدوي"
@@ -904,6 +968,10 @@ msgstr "المواقع"
 # en-hash: 10d0de28911c5f66463b9c8783f8148a
 msgid "menu_maintenance"
 msgstr "الصيانة"
+
+# en-hash: 853bc97f601398edb9bfc5415ad553bd
+msgid "menu_manage_series"
+msgstr "إدارة السلسلة"
 
 # en-hash: 2c126ee6ce85ef471a3a0e096c78b724
 msgid "menu_mentions_settings"
@@ -1169,6 +1237,22 @@ msgstr "plugins/xray.koplugin"
 msgid "pending_duplicates_prompt"
 msgstr "وجد الذكاء الاصطناعي %d تكرارًا محتملاً من الجلب الأخير. هل تريد المراجعة الآن؟"
 
+# en-hash: 3c74d67fe6539aa42a867a2f7bc6dffc
+msgid "picker_cover_view"
+msgstr "أغلفة"
+
+# en-hash: 7ee4364fa0e2e61963fcd9007342b20c
+msgid "picker_items_count"
+msgstr "%d مجلدات، %d كتب"
+
+# en-hash: 4ee29ca12c7d126654bd0e5275de6135
+msgid "picker_list_view"
+msgstr "قائمة"
+
+# en-hash: bec831129824662ffbf6183ac501aa11
+msgid "picker_no_books_found"
+msgstr "لم يتم العثور على ملفات كتب إلكترونية في هذا المجلد."
+
 # en-hash: d87f433b237815fa419a2ac953956c54
 msgid "plugin_description"
 msgstr "حول تجربة القراءة الخاصة بك من خلال تحليل الكتب بمساعدة الذكاء الاصطناعي، تمامًا مثل ميزة X-Ray في أجهزة Amazon Kindle!"
@@ -1288,6 +1372,10 @@ msgstr "تم الكشف عن سلسلة"
 # en-hash: ddb44dbe6c8ac2048d293e6102eb4c54
 msgid "series_disabled_msg"
 msgstr "تم تعطيل المطالبة التلقائية لهذا الكتاب. يمكنك جلب الملخص يدويًا من قائمة X-Ray."
+
+# en-hash: 3b7f48d3ca71c86651435ebde85b76cf
+msgid "series_link_no_chooser"
+msgstr "أداة اختيار الملفات غير متوفرة على هذا الجهاز."
 
 # en-hash: 45038789e6aae12b35398440e65bf810
 msgid "series_no_prior_detected"
