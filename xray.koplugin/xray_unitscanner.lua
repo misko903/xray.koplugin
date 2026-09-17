@@ -1022,23 +1022,17 @@ function M:scanBookForUnits(force)
                     -- 2. Try prefix_word or prev_text tail
                     -- Try digit range
                     local r1, r2 = p:match("([0-9%.%,]+)%s*[%-–toor]+%s*([0-9%.%,]+)$")
-                    if not r1 then
-                        r1, r2 = p:match("([0-9%.%,]+)%s*,%s+([0-9%.%,]+)$")
-                    end
                     if r1 and r2 then
                         val1 = xray_units.parseNumberText(r1)
                         val2 = xray_units.parseNumberText(r2)
                         if val1 and val2 then
 
                             is_range = true
-                            num_str = p:match("([0-9%.%,]+%s*[%-–toor,]+%s*[0-9%.%,]+)$") or (r1 .. "-" .. r2)
+                            num_str = p:match("([0-9%.%,]+%s*[%-–toor]+%s*[0-9%.%,]+)$") or (r1 .. "-" .. r2)
                         end
                     else
                         -- Try written word range
-                        local w1, w2 = p:match("([%a%d%-]+)%s*[,]?%s*(?:to|or|%-|and)%s*([%a%d%-]+)$")
-                        if not w1 then
-                            w1, w2 = p:match("([%a%d%-]+)%s*,%s+([%a%d%-]+)$")
-                        end
+                        local w1, w2 = p:match("([%a%d%-]+)%s*(?:to|or|%-|and)%s*([%a%d%-]+)$")
                         if w1 and w2 then
                             local phrase_words = {}
                             for w in p:gmatch("[%a%d%-%.%,]+") do
@@ -1048,7 +1042,7 @@ function M:scanBookForUnits(force)
                             -- If the whole thing parses as a single compound (like "twenty three"), it's not a range.
                             local is_compound = false
                             local combined_val = xray_units.parseNumberText(w1 .. " " .. w2)
-                            if combined_val and not p:find("%s+to%s") and not p:find("%s+or%s") and not p:find("%s+and%s") and not p:find(",") then
+                            if combined_val and not p:find("%s+to%s") and not p:find("%s+or%s") and not p:find("%s+and%s") then
                                 is_compound = true
                             end
                             
@@ -1057,7 +1051,7 @@ function M:scanBookForUnits(force)
                                 val2 = xray_units.parseNumberText(w2)
                                 if val1 and val2 then
                                     is_range = true
-                                    num_str = p:match("([%a%d%-]+%s*[,]?%s*(?:to|or|%-|and|,)%s*[%a%d%-]+)$") or (w1 .. " to " .. w2)
+                                    num_str = p:match("([%a%d%-]+%s*(?:to|or|%-|and)%s*[%a%d%-]+)$") or (w1 .. " to " .. w2)
                                 end
                             end
                         end
@@ -1144,14 +1138,21 @@ function M:scanBookForUnits(force)
                         local conv_str
                         if is_range then
                             local conv_raw1 = xray_units.convert(val1, u.category, u.name, u.std_target)
-                            local conv_val1, conv_unit = xray_units.applySmartScaling(conv_raw1, u.category, u.std_target)
+                            local conv_val1, conv_unit1 = xray_units.applySmartScaling(conv_raw1, u.category, u.std_target)
                             local conv_raw2 = xray_units.convert(val2, u.category, u.name, u.std_target)
-                            local conv_val2 = xray_units.applySmartScaling(conv_raw2, u.category, u.std_target)
+                            local conv_val2, conv_unit2 = xray_units.applySmartScaling(conv_raw2, u.category, u.std_target)
                             
-                            if conv_unit == "c" then conv_unit = "°C"
-                            elseif conv_unit == "f" then conv_unit = "°F" end
+                            if conv_unit1 == "c" then conv_unit1 = "°C"
+                            elseif conv_unit1 == "f" then conv_unit1 = "°F" end
+                            if conv_unit2 == "c" then conv_unit2 = "°C"
+                            elseif conv_unit2 == "f" then conv_unit2 = "°F" end
                             
-                            conv_str = (is_vague and "≈" or "") .. xray_units.formatNumber(conv_val1, lang) .. "–" .. xray_units.formatNumber(conv_val2, lang) .. " " .. xray_units.pluralizeUnit(conv_val2, conv_unit)
+                            local prefix = (is_vague and "≈" or "")
+                            if conv_unit1 == conv_unit2 then
+                                conv_str = prefix .. xray_units.formatNumber(conv_val1, lang) .. "–" .. xray_units.formatNumber(conv_val2, lang) .. " " .. xray_units.pluralizeUnit(conv_val2, conv_unit2)
+                            else
+                                conv_str = prefix .. xray_units.formatNumber(conv_val1, lang) .. " " .. xray_units.pluralizeUnit(conv_val1, conv_unit1) .. "–" .. xray_units.formatNumber(conv_val2, lang) .. " " .. xray_units.pluralizeUnit(conv_val2, conv_unit2)
+                            end
                         else
                             local sign = ""
                             if u.category == "temp" then
