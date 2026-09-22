@@ -1211,10 +1211,20 @@ function M:finalizeXRayData(final_book_data, title, author, book_text, is_update
     if self.series_manager and (updated_data.series_slug or (self.ui and self.ui.document)) then
         pcall(function()
             local props = self.ui and self.ui.document and self.ui.document:getProps() or {}
-            local series_info = self.series_manager:detectSeries(props, title, author, nil)
-            local slug = updated_data.series_slug or (series_info and series_info.slug)
+            local series_info = self.series_manager:getSeriesInfo(updated_data, props, title, author)
+            local slug = (series_info and series_info.slug) or updated_data.series_slug
             local index = series_info and series_info.index
             if slug and index then
+                if series_info.has_explicit_index ~= false then
+                    updated_data.series_index = index
+                end
+                if series_info.name and not updated_data.series then
+                    updated_data.series = series_info.name
+                end
+                if slug and not updated_data.series_slug then
+                    updated_data.series_slug = slug
+                end
+
                 self.series_manager:syncBookToSeriesCache(slug, index, {
                     title = title,
                     author = author,
@@ -1222,7 +1232,7 @@ function M:finalizeXRayData(final_book_data, title, author, book_text, is_update
                     locations = self.locations,
                     terms = self.terms,
                     timeline = self.timeline,
-                }, doc_file)
+                }, doc_file, series_info.has_explicit_index)
 
                 local cache_data = self.series_manager:loadSeriesCache(slug)
                 local s_setting = self.ai_helper and self.ai_helper.settings and self.ai_helper.settings.series_context_enabled
@@ -2195,6 +2205,12 @@ function M:mergeSeriesContext(cache_data, series_info)
         local cache = self.book_data
         cache.series_context_loaded = true
         cache.series_slug = series_info.slug
+        if series_info.index then
+            cache.series_index = series_info.index
+        end
+        if series_info.name then
+            cache.series = series_info.name
+        end
         cache.characters = self.characters
         cache.locations = self.locations
         cache.terms = self.terms

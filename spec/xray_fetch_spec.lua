@@ -499,6 +499,46 @@ describe("xray_fetch", function()
             assert.is_true(#plugin.timeline > 0)
             assert.is_true(plugin.series_context_loaded)
         end)
+
+        it("persists series_index and series name to book cache when merging series context", function()
+            local saved_cache = nil
+            plugin.ui = {
+                document = {
+                    file = "/tmp/koreader/book2.epub",
+                    getToc = function() return {} end,
+                    getProps = function() return { title = "Golden Son" } end
+                }
+            }
+            plugin.cache_manager = {
+                loadCache = function(self, path) return { title = "Golden Son" } end,
+                asyncSaveCache = function(self, path, data)
+                    saved_cache = data
+                    return true
+                end
+            }
+            plugin.book_data = nil
+            plugin.characters = {}
+            plugin.locations = {}
+            plugin.terms = {}
+            plugin.timeline = {}
+
+            local cache_data = {
+                books = {
+                    [1] = {
+                        title = "Red Rising",
+                        characters = { { name = "Darrow", description = "Red miner" } }
+                    }
+                }
+            }
+            local series_info = { name = "Red Rising", index = 2, slug = "red_rising" }
+            plugin:mergeSeriesContext(cache_data, series_info)
+
+            assert.is_not_nil(saved_cache)
+            assert.are.equal("red_rising", saved_cache.series_slug)
+            assert.are.equal(2, saved_cache.series_index)
+            assert.are.equal("Red Rising", saved_cache.series)
+            assert.is_true(saved_cache.series_context_loaded)
+        end)
     end)
 
     describe("fetchSingleWord safety & edge cases", function()

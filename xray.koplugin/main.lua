@@ -1201,8 +1201,8 @@ function XRayPlugin:autoLoadCache()
                 local title = sanitizeMetadata(props.title or cached_data.title or cached_data.book_title)
                 local author = sanitizeMetadata(props.authors or cached_data.author or cached_data.book_author)
                 local series_info = self.series_manager:getSeriesInfo(cached_data, props, title, author)
-                if series_info and series_info.slug and series_info.index then
-                    self.series_manager:syncBookToSeriesCache(series_info.slug, series_info.index, cached_data, book_path)
+                if series_info and series_info.slug and series_info.index and series_info.has_explicit_index ~= false then
+                    self.series_manager:syncBookToSeriesCache(series_info.slug, series_info.index, cached_data, book_path, true)
                 end
             end)
         end

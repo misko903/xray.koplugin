@@ -646,6 +646,158 @@ describe("xray_seriesmanager", function()
             assert.is_true(roster.books[2].is_current)
         end)
     end)
+
+    describe("getSeriesInfo index fallback and backfill", function()
+        it("uses book_data.series_index when present", function()
+            local book_data = {
+                series_slug = "red_rising",
+                series = "Red Rising",
+                series_index = 2,
+            }
+            local props = { series_index = 99 } -- should not override explicit book_data
+            local info = manager:getSeriesInfo(book_data, props, "Golden Son", "Pierce Brown")
+            assert.is_not_nil(info)
+            assert.are.equal("red_rising", info.slug)
+            assert.are.equal(2, info.index)
+            assert.is_true(info.has_explicit_index)
+        end)
+
+        it("falls through to props.series_index and backfills book_data when series_index missing", function()
+            local book_data = {
+                series_slug = "red_rising",
+            }
+            local props = { series = "Red Rising", series_index = 2 }
+            local info = manager:getSeriesInfo(book_data, props, "Golden Son", "Pierce Brown")
+            assert.is_not_nil(info)
+            assert.are.equal("red_rising", info.slug)
+            assert.are.equal(2, info.index)
+            assert.is_true(info.has_explicit_index)
+            assert.are.equal("Red Rising", info.name)
+            -- Verify in-memory backfill
+            assert.are.equal(2, book_data.series_index)
+            assert.are.equal("Red Rising", book_data.series)
+        end)
+
+        it("falls through to title parsing when series_index missing and props has no index", function()
+            local book_data = {
+                series_slug = "red_rising",
+                series = "Red Rising",
+            }
+            local props = { series = "Red Rising" }
+            local info = manager:getSeriesInfo(book_data, props, "Golden Son (Red Rising #2)", "Pierce Brown")
+            assert.is_not_nil(info)
+            assert.are.equal(2, info.index)
+            assert.is_true(info.has_explicit_index)
+            assert.are.equal(2, book_data.series_index)
+        end)
+
+        it("defaults to index 1 with has_explicit_index=false when no index is resolvable", function()
+            local book_data = {
+                series_slug = "red_rising",
+            }
+            local props = {}
+            local info = manager:getSeriesInfo(book_data, props, "Golden Son", "Pierce Brown")
+            assert.is_not_nil(info)
+            assert.are.equal(1, info.index)
+            assert.is_false(info.has_explicit_index)
+            -- Does not backfill an unverified default index
+            assert.is_nil(book_data.series_index)
+        end)
+    end)
+
+    describe("syncBookToSeriesCache is_explicit guards", function()
+        local slug = "red_rising"
+
+        before_each(function()
+            local init_cache = {
+                series_slug = slug,
+                books = {
+                    [1] = { title = "Red Rising", author = "Pierce Brown", source = "local_xray" },
+                    [2] = { title = "Golden Son", author = "Pierce Brown", source = "local_xray" },
+                },
+                book_paths = {
+                    [1] = "/books/Red Rising.epub",
+                    [2] = "/books/Golden Son.epub",
+                }
+            }
+            manager:saveSeriesCache(slug, init_cache)
+        end)
+
+        it("refuses to overwrite a different book when is_explicit is false", function()
+            local golden_son_data = {
+                title = "Golden Son",
+                author = "Pierce Brown",
+                characters = {},
+            }
+            -- Attempting to sync to slot 1 with is_explicit = false must fail because slot 1 is Red Rising
+            local ok = manager:syncBookToSeriesCache(slug, 1, golden_son_data, "/books/Golden Son.epub", false)
+            assert.is_false(ok)
+
+            -- Cache in slot 1 and slot 2 must be completely preserved
+            local c = manager:loadSeriesCache(slug)
+            assert.are.equal("Red Rising", c.books[1].title)
+            assert.are.equal("/books/Red Rising.epub", c.book_paths[1])
+            assert.are.equal("Golden Son", c.books[2].title)
+            assert.are.equal("/books/Golden Son.epub", c.book_paths[2])
+        end)
+
+        it("refuses to move an existing book to a new slot when is_explicit is false", function()
+            local golden_son_data = {
+                title = "Golden Son",
+                author = "Pierce Brown",
+                characters = {},
+            }
+            -- Attempting to sync Golden Son (which is already in slot 2) to empty slot 3 with is_explicit = false
+            local ok = manager:syncBookToSeriesCache(slug, 3, golden_son_data, "/books/Golden Son.epub", false)
+            assert.is_false(ok)
+
+            local c = manager:loadSeriesCache(slug)
+            assert.is_nil(c.books[3])
+            assert.are.equal("Golden Son", c.books[2].title)
+        end)
+
+        it("allows syncing to an empty slot when is_explicit is false and book is not elsewhere", function()
+            local iron_gold_data = {
+                title = "Iron Gold",
+                author = "Pierce Brown",
+                characters = {},
+            }
+            local ok = manager:syncBookToSeriesCache(slug, 4, iron_gold_data, "/books/Iron Gold.epub", false)
+            assert.is_true(ok)
+
+            local c = manager:loadSeriesCache(slug)
+            assert.is_not_nil(c.books[4])
+            assert.are.equal("Iron Gold", c.books[4].title)
+        end)
+
+        it("allows updating the same book at its existing slot when is_explicit is false", function()
+            local updated_gs = {
+                title = "Golden Son",
+                author = "Pierce Brown",
+                characters = { { name = "Darrow" } },
+            }
+            local ok = manager:syncBookToSeriesCache(slug, 2, updated_gs, "/books/Golden Son.epub", false)
+            assert.is_true(ok)
+
+            local c = manager:loadSeriesCache(slug)
+            assert.are.equal("Golden Son", c.books[2].title)
+            assert.are.equal(1, #c.books[2].characters)
+        end)
+
+        it("allows explicit reassignments and pruning when is_explicit is true or nil", function()
+            local new_book_1 = {
+                title = "Red Rising (Special Edition)",
+                author = "Pierce Brown",
+                characters = {},
+            }
+            -- When is_explicit is true, intentional overwrite of slot 1 is allowed
+            local ok = manager:syncBookToSeriesCache(slug, 1, new_book_1, "/books/Red Rising Special.epub", true)
+            assert.is_true(ok)
+
+            local c = manager:loadSeriesCache(slug)
+            assert.are.equal("Red Rising (Special Edition)", c.books[1].title)
+        end)
+    end)
 end)
 
 

@@ -168,13 +168,15 @@ function SeriesManager:detectSeries(props, title, author, ai_helper)
         if not index then
             index = self:extractIndexFromTitle(title, name)
         end
+        local has_explicit_index = (index ~= nil)
         index = index or 1
         logger.info("XRayPlugin: Series: detectSeries: AI returned: is_series=" .. tostring(result.is_series) .. ", series_name=" .. tostring(name) .. ", book_index=" .. tostring(index))
         if name and name ~= "" then
             return {
                 name = name,
                 index = index,
-                slug = makeSlug(name)
+                slug = makeSlug(name),
+                has_explicit_index = has_explicit_index
             }
         end
     else
@@ -316,19 +318,51 @@ function SeriesManager:loadSeriesCache(slug)
 end
 
 -- Resolve series information from book_data or document metadata
-function SeriesManager:getSeriesInfo(book_data, props, title, author)
+function SeriesManager:getSeriesInfo(book_data, props, title, author, ai_helper)
     -- 1. Check book_data if already populated with a valid series slug
     if book_data and book_data.series_slug and book_data.series_slug ~= "" and book_data.series_slug ~= "series" then
+        local raw_index = tonumber(book_data.series_index)
+        local has_explicit_index = (raw_index ~= nil)
+        local index = raw_index
+        local name = book_data.series
+
+        if not index then
+            local detected = self:detectSeries(props, title, author, ai_helper)
+            if detected and detected.has_explicit_index then
+                index = detected.index
+                has_explicit_index = true
+                name = name or detected.name
+            else
+                local meta_index = props and tonumber(props.series_index or props.seriesindex or props.SeriesIndex)
+                if meta_index then
+                    index = meta_index
+                    has_explicit_index = true
+                elseif title then
+                    local title_idx = self:extractIndexFromTitle(title, name or book_data.series_slug)
+                    if title_idx then
+                        index = title_idx
+                        has_explicit_index = true
+                    end
+                end
+            end
+            if has_explicit_index and index then
+                book_data.series_index = index
+            end
+            if name and not book_data.series then
+                book_data.series = name
+            end
+        end
+
         return {
-            name = book_data.series or book_data.series_slug,
+            name = name or book_data.series or book_data.series_slug,
             slug = book_data.series_slug,
-            index = tonumber(book_data.series_index) or 1,
-            has_explicit_index = book_data.series_index ~= nil,
+            index = index or 1,
+            has_explicit_index = has_explicit_index,
         }
     end
 
-    -- 2. Detect series from document props, title, and author (metadata check only, no AI)
-    local detected = self:detectSeries(props, title, author, nil)
+    -- 2. Detect series from document props, title, and author (metadata check only, no AI unless ai_helper passed)
+    local detected = self:detectSeries(props, title, author, ai_helper)
     if detected and detected.slug and detected.slug ~= "" and detected.slug ~= "series" then
         return detected
     end
@@ -458,7 +492,7 @@ local function filterCurrentOnly(tbl)
 end
 
 -- Synchronize clean book data into SeriesCache for a specific book index
-function SeriesManager:syncBookToSeriesCache(slug, index, book_data, book_path)
+function SeriesManager:syncBookToSeriesCache(slug, index, book_data, book_path, is_explicit)
     if not slug or slug == "" or slug == "series" or not index or not book_data then
         return false
     end
@@ -475,6 +509,34 @@ function SeriesManager:syncBookToSeriesCache(slug, index, book_data, book_path)
 
     local title = book_data.title or book_data.book_title
     local author = book_data.author or book_data.book_author or book_data.authors
+
+    -- Guard when index is only an implicit/fallback default:
+    if is_explicit == false then
+        local existing_book = cache_data.books[index]
+        local existing_path = cache_data.book_paths[index]
+        -- 1. Refuse to overwrite an occupied slot if it belongs to a different book
+        if existing_book and existing_book.title and title and existing_book.title:lower() ~= title:lower() then
+            logger.info("SeriesManager: Skipping sync of Book " .. tostring(index) .. " to series cache '" .. tostring(slug) .. "': slot occupied by '" .. tostring(existing_book.title) .. "' and index is non-explicit")
+            return false
+        end
+        if existing_path and book_path and existing_path ~= book_path then
+            logger.info("SeriesManager: Skipping sync of Book " .. tostring(index) .. " to series cache '" .. tostring(slug) .. "': slot occupied by different path and index is non-explicit")
+            return false
+        end
+        -- 2. Refuse to move a book that is already tracked in a different slot
+        for other_idx, other_book in pairs(cache_data.books) do
+            if tonumber(other_idx) ~= index and other_book and other_book.title and title and other_book.title:lower() == title:lower() then
+                logger.info("SeriesManager: Skipping sync of Book " .. tostring(index) .. " to series cache '" .. tostring(slug) .. "': book already recorded at slot " .. tostring(other_idx) .. " and index is non-explicit")
+                return false
+            end
+        end
+        for other_idx, other_path in pairs(cache_data.book_paths) do
+            if tonumber(other_idx) ~= index and other_path and book_path and other_path == book_path then
+                logger.info("SeriesManager: Skipping sync of Book " .. tostring(index) .. " to series cache '" .. tostring(slug) .. "': book path already recorded at slot " .. tostring(other_idx) .. " and index is non-explicit")
+                return false
+            end
+        end
+    end
 
     cache_data.books[index] = {
         title = title,
