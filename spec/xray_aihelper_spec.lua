@@ -320,6 +320,30 @@ describe("AIHelper", function()
                 assert.is_table(data.characters)
             end)
 
+            it("extracts text from Claude response when preceded by thinking block", function()
+                local tmp = os.tmpname()
+                local f = io.open(tmp, "w")
+                f:write('200\nclaude\n{"content":[{"type":"thinking","thinking":"Analyzing context..."},{"type":"text","text":"{\\"characters\\":[]}"}]}')
+                f:close()
+
+                local data, err_code, err_msg = AIHelper:checkAsyncResult(tmp)
+                assert.is_not_nil(data)
+                assert.is_nil(err_code)
+                assert.is_table(data.characters)
+            end)
+
+            it("extracts text from Claude response wrapped in markdown code fences", function()
+                local tmp = os.tmpname()
+                local f = io.open(tmp, "w")
+                f:write('200\nclaude\n{"content":[{"type":"text","text":"```json\\n{\\"characters\\":[]}\\n```"}]}')
+                f:close()
+
+                local data, err_code, err_msg = AIHelper:checkAsyncResult(tmp)
+                assert.is_not_nil(data)
+                assert.is_nil(err_code)
+                assert.is_table(data.characters)
+            end)
+
             it("extracts finish_reason from Gemini and Claude when text is empty", function()
                 local tmp_gemini = os.tmpname()
                 local f_gemini = io.open(tmp_gemini, "w")
@@ -825,6 +849,33 @@ describe("AIHelper", function()
             assert.are.equal("gemini-2.5-pro", AIHelper.settings.primary_ai.model)
             assert.are.equal("gemini-3.7-flash", AIHelper.settings.secondary_ai.model)
         end)
+
+        it("should migrate retired Claude models in primary_ai, secondary_ai, and claude_model", function()
+            local json = require("json")
+            local mock_settings = {
+                primary_ai = { provider = "claude", model = "claude-3-7-sonnet-latest" },
+                secondary_ai = { provider = "claude", model = "claude-3-5-haiku-20241022" },
+                claude_model = "claude-3-5-haiku-latest",
+            }
+
+            local old_open = io.open
+            io.open = function(path, mode)
+                if path:find("settings.json") and (mode == "r" or mode == nil) then
+                    return {
+                        read = function() return json.encode(mock_settings) end,
+                        close = function() end
+                    }
+                end
+                return old_open(path, mode)
+            end
+
+            AIHelper:loadSettings()
+            io.open = old_open
+
+            assert.are.equal("claude-sonnet-5", AIHelper.settings.primary_ai.model)
+            assert.are.equal("claude-haiku-4-5", AIHelper.settings.secondary_ai.model)
+            assert.are.equal("claude-haiku-4-5", AIHelper.settings.claude_model)
+        end)
     end)
 
     describe("persistent config backup and restoration", function()
@@ -957,6 +1008,58 @@ custom1_model = google/gemini-2.5-flash
             assert.is_true(ok)
             assert.are.equal("", cfg.deepseek_api_key or "")
             assert.are.equal("keep_this", cfg.gemini_api_key or "")
+        end)
+    end)
+
+    describe("Claude key validation", function()
+        local json = require("json")
+
+        it("validates Claude key with dynamic model resolution and fallbacks", function()
+            local original_makeRequest = AIHelper.makeRequest
+            local captured_url, captured_headers, captured_body
+            AIHelper.makeRequest = function(self, url, headers, body, connect_timeout, timeout)
+                captured_url = url
+                captured_headers = headers
+                captured_body = body
+                return true, 200, '{"id":"msg_123"}'
+            end
+
+            AIHelper.providers.claude.api_key = "sk-ant-testkey"
+            
+            -- Case 1: Fallback to claude-haiku-4-5 when no Claude model is configured
+            AIHelper.settings.primary_ai = { provider = "gemini", model = "gemini-3.7-flash" }
+            AIHelper.settings.secondary_ai = { provider = "gemini", model = "gemini-3.5-flash-lite" }
+            AIHelper.settings.claude_model = nil
+            AIHelper.providers.claude.model = nil
+
+            local res = AIHelper:validateProviderKey("claude")
+            assert.is_true(res.ok)
+            local req = json.decode(captured_body)
+            assert.are.equal("claude-haiku-4-5", req.model)
+            assert.are.equal("sk-ant-testkey", captured_headers["x-api-key"])
+
+            -- Case 2: Configured Claude model in primary_ai is respected
+            AIHelper.settings.primary_ai = { provider = "claude", model = "claude-sonnet-5" }
+            res = AIHelper:validateProviderKey("claude")
+            assert.is_true(res.ok)
+            req = json.decode(captured_body)
+            assert.are.equal("claude-sonnet-5", req.model)
+
+            -- Case 3: Retired Claude 3.5 Haiku model is upgraded to claude-haiku-4-5
+            AIHelper.settings.primary_ai = { provider = "claude", model = "claude-3-5-haiku-20241022" }
+            res = AIHelper:validateProviderKey("claude")
+            assert.is_true(res.ok)
+            req = json.decode(captured_body)
+            assert.are.equal("claude-haiku-4-5", req.model)
+
+            -- Case 4: Retired Claude 3.7 Sonnet model is upgraded to claude-sonnet-5
+            AIHelper.settings.primary_ai = { provider = "claude", model = "claude-3-7-sonnet-latest" }
+            res = AIHelper:validateProviderKey("claude")
+            assert.is_true(res.ok)
+            req = json.decode(captured_body)
+            assert.are.equal("claude-sonnet-5", req.model)
+
+            AIHelper.makeRequest = original_makeRequest
         end)
     end)
 end)

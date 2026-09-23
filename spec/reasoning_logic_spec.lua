@@ -32,7 +32,7 @@ describe("AI Reasoning Logic", function()
         end)
 
         it("should NOT include thinking block for Claude when reasoning is unset", function()
-            AIHelper.settings.primary_ai = { provider = "claude", model = "claude-3-7-sonnet" }
+            AIHelper.settings.primary_ai = { provider = "claude", model = "claude-sonnet-5" }
             AIHelper.settings.reasoning_effort = nil
             
             local requests = AIHelper:buildComprehensiveRequest("Title", "Author", {})
@@ -40,9 +40,8 @@ describe("AI Reasoning Logic", function()
             
             assert.is_nil(body.thinking)
             assert.are.equal(8192, body.max_tokens)
-            assert.are.equal(2, #body.messages)
+            assert.are.equal(1, #body.messages)
             assert.are.equal("user", body.messages[1].role)
-            assert.are.equal("assistant", body.messages[2].role)
         end)
 
         it("should include response_format=json_object for OpenAI when reasoning is unset", function()

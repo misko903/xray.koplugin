@@ -316,7 +316,7 @@ function AIHelper:buildComprehensiveRequest(title, author, context, prompt_overr
                     generationConfig = gen_config
                 })
             elseif self:isAnthropic(ai.provider, config.endpoint) then
-                local model = resolved_model or "claude-3-7-sonnet-latest"
+                local model = resolved_model or "claude-sonnet-5"
                 url = config.endpoint or "https://api.anthropic.com/v1/messages"
                 headers = {
                     ["Content-Type"] = "application/json",
@@ -359,10 +359,6 @@ function AIHelper:buildComprehensiveRequest(title, author, context, prompt_overr
                 local claude_messages = {
                     { role = "user", content = prompt }
                 }
-                -- Anthropic does not support assistant message prefill when thinking is enabled (must end with user message)
-                if not is_thinking then
-                    table.insert(claude_messages, { role = "assistant", content = "{" })
-                end
 
                 local req_body = {
                     model = model,
@@ -857,9 +853,16 @@ function AIHelper:makeRequestAsync(request_params, result_file)
                                 end
                             end
                         -- Anthropic wraps content in content[].text
-                        elseif parsed.content and parsed.content[1] then
-                            local content = parsed.content[1].text
+                        elseif type(parsed.content) == "table" then
+                            local content = nil
+                            for _, block in ipairs(parsed.content) do
+                                if type(block) == "table" and (block.type == "text" or (not block.type and block.text)) and type(block.text) == "string" then
+                                    content = block.text
+                                    break
+                                end
+                            end
                             if content then
+                                content = content:gsub("^%s*```%w*%s*", ""):gsub("%s*```%s*$", "")
                                 local text_to_decode = content
                                 if not content:find("^%s*{") then
                                     text_to_decode = "{" .. content
@@ -1104,12 +1107,21 @@ function AIHelper:checkAsyncResult(result_file, expected_pid)
             end
         end
     elseif provider == "claude" or self:isAnthropic(provider, self.providers[provider] and self.providers[provider].endpoint) then
-        if type(data.content) == "table" and type(data.content[1]) == "table" and type(data.content[1].text) == "string" then
-            local content_text = data.content[1].text
-            if content_text:find("^%s*{") then
-                ai_text = content_text
-            else
-                ai_text = "{" .. content_text
+        if type(data.content) == "table" then
+            local content_text = nil
+            for _, block in ipairs(data.content) do
+                if type(block) == "table" and (block.type == "text" or (not block.type and block.text)) and type(block.text) == "string" then
+                    content_text = block.text
+                    break
+                end
+            end
+            if content_text then
+                content_text = content_text:gsub("^%s*```%w*%s*", ""):gsub("%s*```%s*$", "")
+                if content_text:find("^%s*{") then
+                    ai_text = content_text
+                else
+                    ai_text = "{" .. content_text
+                end
             end
         end
     else
@@ -1590,6 +1602,33 @@ function AIHelper:loadSettings()
     end
     if settings.gemini_secondary_model and gemini_model_map[settings.gemini_secondary_model] then
         settings.gemini_secondary_model = gemini_model_map[settings.gemini_secondary_model]
+        migrated = true
+    end
+
+    -- Migrate retired Claude model names to modern active equivalents
+    local claude_model_map = {
+        ["claude-3-7-sonnet-latest"] = "claude-sonnet-5",
+        ["claude-3-7-sonnet"]        = "claude-sonnet-5",
+        ["claude-3.7-sonnet"]        = "claude-sonnet-5",
+        ["claude-3-5-haiku-20241022"]= "claude-haiku-4-5",
+        ["claude-3-5-haiku-latest"]  = "claude-haiku-4-5",
+        ["claude-3-5-haiku"]         = "claude-haiku-4-5",
+        ["claude-3-haiku-20240307"]  = "claude-haiku-4-5",
+    }
+    local function migrate_claude_model(ai_slot)
+        if type(settings[ai_slot]) == "table" and settings[ai_slot].provider == "claude" then
+            local old = settings[ai_slot].model
+            if old and claude_model_map[old] then
+                self:log(string.format("AIHelper: Migrating Claude model '%s' -> '%s' in %s", old, claude_model_map[old], ai_slot))
+                settings[ai_slot].model = claude_model_map[old]
+                migrated = true
+            end
+        end
+    end
+    migrate_claude_model("primary_ai")
+    migrate_claude_model("secondary_ai")
+    if settings.claude_model and claude_model_map[settings.claude_model] then
+        settings.claude_model = claude_model_map[settings.claude_model]
         migrated = true
     end
 
@@ -2158,7 +2197,7 @@ function AIHelper:mergeDescriptionsWithAI(primary_desc, secondary_desc)
 end
 
 function AIHelper:callClaude(prompt, config, current_model)
-    local model = current_model or "claude-3-7-sonnet-latest"
+    local model = current_model or "claude-sonnet-5"
     self:log("AIHelper: Starting Anthropic Claude request for model: " .. model)
     
     local system_instruction_text = (self.prompts and self.prompts.system_instruction or "Return valid JSON ONLY.") .. " You MUST output strictly valid JSON, starting with '{'."
@@ -2182,10 +2221,6 @@ function AIHelper:callClaude(prompt, config, current_model)
     local claude_messages = {
         { role = "user", content = prompt }
     }
-    -- Anthropic does not support assistant message prefill when thinking is enabled (must end with user message)
-    if not is_thinking then
-        table.insert(claude_messages, { role = "assistant", content = "{" })
-    end
 
     local req_body = {
         model = model,
@@ -2249,17 +2284,26 @@ function AIHelper:callClaude(prompt, config, current_model)
     
     if code_num == 200 and response_text then
         local success, data = pcall(json.decode, response_text)
-        if success and data.content and data.content[1] and data.content[1].text then
-            local content_text = data.content[1].text
-            local text_content = content_text
-            if not content_text:find("^%s*{") then
-                text_content = "{" .. content_text
+        if success and type(data.content) == "table" then
+            local content_text = nil
+            for _, block in ipairs(data.content) do
+                if type(block) == "table" and (block.type == "text" or (not block.type and block.text)) and type(block.text) == "string" then
+                    content_text = block.text
+                    break
+                end
             end
-            local parsed_data, err = self:parseAIResponse(text_content)
-            if parsed_data then
-                return parsed_data
+            if content_text then
+                content_text = content_text:gsub("^%s*```%w*%s*", ""):gsub("%s*```%s*$", "")
+                local text_content = content_text
+                if not content_text:find("^%s*{") then
+                    text_content = "{" .. content_text
+                end
+                local parsed_data, err = self:parseAIResponse(text_content)
+                if parsed_data then
+                    return parsed_data
+                end
+                self:log("AIHelper: Anthropic parse failed: " .. tostring(err))
             end
-            self:log("AIHelper: Anthropic parse failed: " .. tostring(err))
         end
     else
         local error_detail = "HTTP " .. tostring(code_num or code or "Unknown")
@@ -2880,6 +2924,16 @@ function AIHelper:validateProviderKey(provider_id)
             generationConfig = { maxOutputTokens = 5 }
         })
     elseif provider_id == "claude" then
+        local model = (self.settings and self.settings.claude_model)
+            or (self.settings and self.settings.primary_ai and self.settings.primary_ai.provider == "claude" and self.settings.primary_ai.model)
+            or (self.settings and self.settings.secondary_ai and self.settings.secondary_ai.provider == "claude" and self.settings.secondary_ai.model)
+            or prov.model
+            or "claude-haiku-4-5"
+        if model == "claude-3-5-haiku-20241022" or model == "claude-3-5-haiku-latest" or model == "claude-3-5-haiku" or model == "claude-3-haiku-20240307" then
+            model = "claude-haiku-4-5"
+        elseif model == "claude-3-7-sonnet-latest" or model == "claude-3-7-sonnet" or model == "claude-3.7-sonnet" then
+            model = "claude-sonnet-5"
+        end
         url = prov.endpoint or "https://api.anthropic.com/v1/messages"
         headers = {
             ["Content-Type"] = "application/json",
@@ -2887,7 +2941,7 @@ function AIHelper:validateProviderKey(provider_id)
             ["anthropic-version"] = "2023-06-01"
         }
         request_body = json.encode({
-            model = "claude-3-5-haiku-20241022",
+            model = model,
             max_tokens = 5,
             messages = {{ role = "user", content = "ping" }}
         })
