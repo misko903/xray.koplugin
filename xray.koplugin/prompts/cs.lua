@@ -121,7 +121,7 @@ POŽADOVANÝ FORMÁT JSON:
       "name": "Celé formální jméno",
       "aliases": ["Alias 1", "Alias 2"],
       "role": "Krátké označení archetypu (3–5 slov, např. 'Antagonista', 'Protagonista', 'Oběť')",
-      "gender": "Male / Female / Unknown",
+      "gender": "Muž / Žena / Neznámé",
       "occupation": "Povolání/postavení",
       "description": "Popis PŘÍSNĚ podle poskytnutého textu. Nevyvozuj ani nepřidávej externí znalosti. ŽÁDNÉ SPOILERY. (Max. {MAX_CHAR_DESC} znaků)"
     }
@@ -180,7 +180,7 @@ POŽADOVANÝ FORMÁT JSON:
       "name": "Celé formální jméno",
       "aliases": ["Alias 1", "Alias 2"],
       "role": "Krátké označení archetypu (3–5 slov, např. 'Antagonista', 'Protagonista', 'Oběť')",
-      "gender": "Male / Female / Unknown",
+      "gender": "Muž / Žena / Neznámé",
       "occupation": "Povolání/postavení",
       "description": "Popis PŘÍSNĚ podle poskytnutého textu. Nevyvozuj ani nepřidávej externí znalosti. ŽÁDNÉ SPOILERY. (Max. {MAX_CHAR_DESC} znaků)"
     }
@@ -237,7 +237,7 @@ POŽADOVANÝ FORMÁT JSON:
     "name": "Celé jméno",
     "aliases": ["Alias 1", "Alias 2"],
     "role": "Krátké označení archetypu (3–5 slov, např. 'Antagonista', 'Protagonista', 'Oběť')",
-    "gender": "Male/Female/Unknown",
+    "gender": "Muž/Žena/Neznámé",
     "occupation": "Povolání",
     "description": "Krátký popis (MAX. 250 znaků)"
   },

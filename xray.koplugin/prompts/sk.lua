@@ -121,7 +121,7 @@ POŽADOVANÝ FORMÁT JSON:
       "name": "Celé formálne meno",
       "aliases": ["Alias 1", "Alias 2"],
       "role": "Krátke označenie archetypu (3–5 slov, napr. 'Antagonista', 'Protagonista', 'Obeť')",
-      "gender": "Male / Female / Unknown",
+      "gender": "Muž / Žena / Neznáme",
       "occupation": "Povolanie/postavenie",
       "description": "Popis PRÍSNE podľa poskytnutého textu. Nevyvodzuj ani nepridávaj externé znalosti. ŽIADNE SPOILERY. (Max. {MAX_CHAR_DESC} znakov)"
     }
@@ -180,7 +180,7 @@ POŽADOVANÝ FORMÁT JSON:
       "name": "Celé formálne meno",
       "aliases": ["Alias 1", "Alias 2"],
       "role": "Krátke označenie archetypu (3–5 slov, napr. 'Antagonista', 'Protagonista', 'Obeť')",
-      "gender": "Male / Female / Unknown",
+      "gender": "Muž / Žena / Neznáme",
       "occupation": "Povolanie/postavenie",
       "description": "Popis PRÍSNE podľa poskytnutého textu. Nevyvodzuj ani nepridávaj externé znalosti. ŽIADNE SPOILERY. (Max. {MAX_CHAR_DESC} znakov)"
     }
@@ -237,7 +237,7 @@ POŽADOVANÝ FORMÁT JSON:
     "name": "Celé meno",
     "aliases": ["Alias 1", "Alias 2"],
     "role": "Krátke označenie archetypu (3–5 slov, napr. 'Antagonista', 'Protagonista', 'Obeť')",
-    "gender": "Male/Female/Unknown",
+    "gender": "Muž/Žena/Neznáme",
     "occupation": "Povolanie",
     "description": "Krátky popis (MAX. 250 znakov)"
   },
